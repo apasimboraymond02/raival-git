@@ -1,0 +1,17 @@
+@import "tailwindcss";
+
+@theme {
+  --color-raival-bg: #080D1A;
+  --color-raival-surface: #0E1726;
+  --color-raival-surfaceLight: #1D2A3F;
+  --color-raival-primary: #00E5FF;
+  --color-raival-secondary: #0088FF;
+  --color-raival-accent: #38BDF8;
+  --color-raival-success: #10B981;
+  --color-raival-danger: #EF4444;
+}
+
+body {
+  background-color: var(--color-raival-bg);
+  color: #FFFFFF;
+}
