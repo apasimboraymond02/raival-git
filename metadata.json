@@ -1,0 +1,6 @@
+{
+  "name": "Raival",
+  "description": "Comprehensive esports tournament platform for Ghanaian gamers with instant mobile money payments, brackets, and community building.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}

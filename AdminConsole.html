@@ -1,0 +1,2159 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Raival Secure Web Management Console</title>
+    <!-- Tailwind CSS CDN -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- FontAwesome Icons -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <!-- Google Fonts -->
+    <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;700&family=JetBrains+Mono:wght@400;700&display=swap" rel="stylesheet">
+    <script src="./tournamentStore.js"></script>
+    <script>
+        tailwind.config = {
+            theme: {
+                extend: {
+                    colors: {
+                        raival: {
+                            bg: '#080D1A',
+                            surface: '#0E1726',
+                            surfaceLight: '#1D2A3F',
+                            primary: '#00E5FF', // Esports Cyan
+                            secondary: '#0088FF', // Electric Blue
+                            accent: '#38BDF8', // Cyber Light Blue Accent
+                            success: '#10B981',
+                            danger: '#EF4444'
+                        }
+                    },
+                    fontFamily: {
+                        sans: ['Space Grotesk', 'sans-serif'],
+                        mono: ['JetBrains Mono', 'monospace']
+                    }
+                }
+            }
+        }
+    </script>
+    <style>
+        body {
+            font-family: 'Space Grotesk', sans-serif;
+            background-color: #080D1A;
+            color: #FFFFFF;
+        }
+        .custom-scrollbar::-webkit-scrollbar-track {
+            background: #0E1726;
+        }
+        .custom-scrollbar::-webkit-scrollbar-thumb {
+            background: #00E5FF;
+            border-radius: 3px;
+        }
+    </style>
+    <!-- SpinKit CSS Spinner Library -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/spinkit/2.0.1/spinkit.min.css">
+    <style>
+        /* Custom styling for SpinKit loader to match Esports Cyber Cyan theme */
+        .sk-chase-dot:before {
+            background-color: #00E5FF !important;
+        }
+    </style>
+</head>
+<body class="min-h-screen flex flex-col antialiased custom-scrollbar">
+
+    <!-- Supabase SDK Import -->
+    <script type="module">
+        import { createClient } from 'https://esm.sh/@supabase/supabase-js@2';
+
+        // Global State & UI controls
+        window.supabase = null;
+
+        // Default credentials placeholder / Live Local Simulation Database if Supabase is offline
+        let localTournaments = [
+            { id: 101, title: "Dream League Ghana Masters", game: "Dream League Soccer", coinEntryFee: 25, coinPrize: 250, players: 12, maxPlayers: 16, status: "Open", date: "2026-07-20", time: "18:00", organizer: "Admin", mode: "1 vs 1", format: "Knockout" },
+            { id: 102, title: "Accra Esports Championship", game: "eFootball 2026", coinEntryFee: 50, coinPrize: 500, players: 8, maxPlayers: 32, status: "Open", date: "2026-07-22", time: "19:30", organizer: "Admin", mode: "1 vs 1", format: "Knockout" }
+        ];
+
+        let localUsers = [
+            { id: 1, username: "Akwasi_Gamer", email: "akwasi@gamer.com", coinBalance: 450, xp: 1200, raivalPoints: 85, status: "Active", role: "player" },
+            { id: 2, username: "FireStriker", email: "fire@striker.com", coinBalance: 720, xp: 2400, raivalPoints: 190, status: "Active", role: "player" },
+            { id: 3, username: "DLS_Guru", email: "guru@dls.com", coinBalance: 15, xp: 450, raivalPoints: 10, status: "Banned", role: "player" },
+            { id: 4, username: "Admin", email: "admin@raival.com", coinBalance: 99999, xp: 99999, raivalPoints: 9999, status: "Active", role: "admin" }
+        ];
+
+        let localDisputes = [
+            { id: "disp_902", matchName: "Akwasi_Gamer vs FireStriker", reason: "Discrepancy in reported score (2-1 vs 2-2)", tournamentId: 101, round: "Quarter-finals" }
+        ];
+
+        let localListings = [
+            { id: 1, sellerName: "GamerPro_23", game: "eFootball", teamName: "FC Barcelona", ovrRating: 95, price: 150.0, status: "Active" },
+            { id: 2, sellerName: "PlayerX_007", game: "FC Mobile", teamName: "Real Madrid", ovrRating: 92, price: 120.0, status: "Active" },
+            { id: 3, sellerName: "GamerPro_23", game: "DLS", teamName: "Ghana Black Stars", ovrRating: 88, price: 75.0, status: "Active" }
+        ];
+
+        let localTransactions = [
+            { id: 1, type: "REGISTRATION", amount: 25.0, status: "success" },
+            { id: 2, type: "REGISTRATION", amount: 50.0, status: "success" },
+            { id: 3, type: "MARKETPLACE", amount: 140.0, status: "success", platformFee: 14.0 }
+        ];
+
+        let localRegistrations = [
+            { id: 1, userId: 1, tournamentId: 101, playerName: "Akwasi_Gamer", inGameName: "Akwasi DLS", paymentMethod: "MTN", phone: "0244123456", registeredAt: Date.now() - 3600000, teamRating: 85, modelTeam: "Kumasi Asante Kotoko" },
+            { id: 2, userId: 2, tournamentId: 101, playerName: "FireStriker", inGameName: "Fire DLS", paymentMethod: "Telecel", phone: "0201122334", registeredAt: Date.now() - 1800000, teamRating: 90, modelTeam: "Hearts of Oak" }
+        ];
+
+        let localLogs = [
+            { timestamp: new Date().toLocaleTimeString(), action: "Admin Console Initialized.", user: "System" }
+        ];
+
+        // Loading states for Supabase network data fetching operations
+        let isLoadingTournaments = false;
+        let isLoadingUsers = false;
+        let isLoadingDisputes = false;
+        let isLoadingRegistrations = false;
+        let isLoadingTransactions = false;
+
+        // Automated notification tracker states
+        let seenRegistrationIds = new Set();
+        let isInitialRegistrationsLoad = true;
+
+        // Modern retro chiptune audio notification synthesizer (Web Audio API)
+        function playAdminNotificationSound() {
+            try {
+                const AudioContext = window.AudioContext || window.webkitAudioContext;
+                if (!AudioContext) return;
+                const ctx = new AudioContext();
+                
+                const playTone = (freq, startTime, duration, type = "sine") => {
+                    const osc = ctx.createOscillator();
+                    const gainNode = ctx.createGain();
+                    
+                    osc.type = type;
+                    osc.frequency.setValueAtTime(freq, startTime);
+                    
+                    gainNode.gain.setValueAtTime(0.15, startTime);
+                    gainNode.gain.exponentialRampToValueAtTime(0.0001, startTime + duration);
+                    
+                    osc.connect(gainNode);
+                    gainNode.connect(ctx.destination);
+                    
+                    osc.start(startTime);
+                    osc.stop(startTime + duration);
+                };
+                
+                const now = ctx.currentTime;
+                // Elegant ascending arcade triple-chime
+                playTone(523.25, now, 0.12, "triangle"); // C5
+                playTone(783.99, now + 0.08, 0.18, "triangle"); // G5
+                playTone(1046.50, now + 0.16, 0.28, "sine"); // C6
+            } catch (e) {
+                console.error("Audio playback error:", e);
+            }
+        }
+
+        // CSS-only SpinKit Loading Spinner HTML helper for Table views
+        window.getTableLoader = function(colspan, message = "FETCHING REAL-TIME DATA...") {
+            return `
+            <tr>
+                <td colspan="${colspan}" class="py-12 text-center">
+                    <div class="flex flex-col items-center justify-center gap-3">
+                        <div class="sk-chase mx-auto" style="width: 36px; height: 36px;">
+                            <div class="sk-chase-dot"></div>
+                            <div class="sk-chase-dot"></div>
+                            <div class="sk-chase-dot"></div>
+                            <div class="sk-chase-dot"></div>
+                            <div class="sk-chase-dot"></div>
+                            <div class="sk-chase-dot"></div>
+                        </div>
+                        <p class="text-xs text-neutral-400 font-mono tracking-wider animate-pulse mt-2">${message}</p>
+                    </div>
+                </td>
+            </tr>
+            `;
+        };
+
+        // CSS-only SpinKit Loading Spinner HTML helper for Grid/Container views
+        window.getGridLoader = function(message = "RETRIEVING CLOUD DISPUTES...") {
+            return `
+            <div class="col-span-full py-12 flex flex-col items-center justify-center gap-3">
+                <div class="sk-chase mx-auto" style="width: 36px; height: 36px;">
+                    <div class="sk-chase-dot"></div>
+                    <div class="sk-chase-dot"></div>
+                    <div class="sk-chase-dot"></div>
+                    <div class="sk-chase-dot"></div>
+                    <div class="sk-chase-dot"></div>
+                    <div class="sk-chase-dot"></div>
+                </div>
+                <p class="text-xs text-neutral-400 font-mono tracking-wider animate-pulse mt-2">${message}</p>
+            </div>
+            `;
+        };
+
+        function updateStatsDashboard() {
+            // 1. Registered Users
+            const userCount = localUsers.length;
+            const elUsers = document.getElementById("stat-registered-players");
+            if (elUsers) elUsers.innerText = userCount;
+
+            // 2. Joined Tournaments (sum of all registrations)
+            const joinedCount = localRegistrations.length;
+            const elJoined = document.getElementById("stat-joined-tournaments");
+            if (elJoined) elJoined.innerText = joinedCount;
+
+            // 3. Platform Revenue
+            let baseRevenue = 12450.0;
+            const txSum = localTransactions.reduce((sum, tx) => {
+                if (tx.status === "success" || tx.status === "Payment Held" || tx.status === "Completed") {
+                    return sum + (parseFloat(tx.amount) || 0) + (parseFloat(tx.platformFee) || 0);
+                }
+                return sum;
+            }, 0);
+            const totalRevenue = baseRevenue + txSum;
+            const elRevenue = document.getElementById("stat-revenue");
+            if (elRevenue) elRevenue.innerText = `₵ ${totalRevenue.toLocaleString(undefined, {minimumFractionDigits: 2, maximumFractionDigits: 2})}`;
+
+            // 4. Teams For Sale
+            const activeListingsCount = localListings.filter(l => l.status === "Active").length;
+            const elTeams = document.getElementById("stat-teams-for-sale");
+            if (elTeams) elTeams.innerText = activeListingsCount;
+
+            // Render payments and participant lists
+            renderPaymentsAndRegistrations();
+        }
+
+        // UI rendering functions
+        function logAction(action, user = "Admin") {
+            const time = new Date().toLocaleTimeString();
+            localLogs.unshift({ timestamp: time, action, user });
+            renderLogs();
+        }
+
+        function renderLogs() {
+            const logContainer = document.getElementById("log-stream");
+            if (!logContainer) return;
+            logContainer.innerHTML = localLogs.map(l => `
+                <div class="text-xs font-mono py-1.5 border-b border-white/5 flex justify-between gap-4">
+                    <span class="text-raival-secondary font-bold">[${l.timestamp}]</span>
+                    <span class="text-neutral-300 flex-1">${l.action}</span>
+                    <span class="text-raival-primary font-bold">${l.user}</span>
+                </div>
+            `).join('');
+        }
+
+        window.renderPaymentsAndRegistrations = function() {
+            // Render MoMo Transactions Table
+            const tbodyTx = document.getElementById("payments-list");
+            if (tbodyTx) {
+                if (isLoadingTransactions) {
+                    tbodyTx.innerHTML = window.getTableLoader(7, "SYNCHRONIZING FINANCIAL LEDGER...");
+                } else if (localTransactions.length === 0) {
+                    tbodyTx.innerHTML = `
+                    <tr>
+                        <td colspan="7" class="py-6 text-center text-xs text-neutral-500 font-bold uppercase tracking-wider">
+                            No ledger transactions recorded yet.
+                        </td>
+                    </tr>
+                    `;
+                } else {
+                    tbodyTx.innerHTML = localTransactions.map(tx => {
+                        const isSuccess = tx.status === 'success' || tx.status === 'SUCCESS';
+                        const statusClass = isSuccess ? 'bg-raival-success/15 text-raival-success' : 'bg-raival-danger/15 text-raival-danger';
+                        return `
+                        <tr class="border-b border-white/5 hover:bg-white/[0.02] transition-all text-sm">
+                            <td class="py-2.5 px-4 font-mono text-xs text-raival-secondary font-bold">${tx.reference || 'N/A'}</td>
+                            <td class="py-2.5 px-4 text-white">User #${tx.userId}</td>
+                            <td class="py-2.5 px-4 text-neutral-300">${tx.tournamentTitle || 'Tournament #' + tx.tournamentId}</td>
+                            <td class="py-2.5 px-4 text-raival-primary font-black font-mono">₵ ${tx.amount}</td>
+                            <td class="py-2.5 px-4 text-neutral-400 text-xs">${tx.paymentMethod || 'MTN'} (${tx.phone || 'N/A'})</td>
+                            <td class="py-2.5 px-4">
+                                <span class="px-2 py-0.5 rounded text-[10px] font-black uppercase tracking-wider ${statusClass}">
+                                    ${tx.status || 'success'}
+                                </span>
+                            </td>
+                            <td class="py-2.5 px-4 text-xs text-neutral-500 font-mono">${tx.timestamp ? new Date(tx.timestamp).toLocaleString() : 'N/A'}</td>
+                        </tr>
+                        `;
+                    }).join('');
+                }
+            }
+
+            // Render Tournament Filter Dropdown
+            const selectTour = document.getElementById("registration-tour-select");
+            if (selectTour) {
+                const currentSelected = selectTour.value;
+                const options = ['<option value="">-- View All Tournaments --</option>']
+                    .concat(localTournaments.map(t => `<option value="${t.id}" ${currentSelected == t.id ? 'selected' : ''}>${t.title} (#${t.id})</option>`));
+                selectTour.innerHTML = options.join('');
+            }
+
+            // Render Simulation Dropdown
+            const simSelect = document.getElementById("sim-tour-select");
+            if (simSelect) {
+                const currentSelected = simSelect.value;
+                const options = ['<option value="">-- Select Tournament --</option>']
+                    .concat(localTournaments.map(t => `<option value="${t.id}" ${currentSelected == t.id ? 'selected' : ''}>${t.title}</option>`));
+                simSelect.innerHTML = options.join('');
+            }
+
+            // Filter and render registrations
+            const selectedTourId = selectTour ? selectTour.value : "";
+            const filteredRegs = selectedTourId ? localRegistrations.filter(r => r.tournamentId == selectedTourId) : localRegistrations;
+
+            const tbodyReg = document.getElementById("registrations-list");
+            if (tbodyReg) {
+                if (isLoadingRegistrations) {
+                    tbodyReg.innerHTML = window.getTableLoader(7, "PULLING PARTICIPANT LISTS...");
+                } else if (filteredRegs.length === 0) {
+                    tbodyReg.innerHTML = `
+                    <tr>
+                        <td colspan="7" class="py-6 text-center text-xs text-neutral-500 font-bold uppercase tracking-wider">
+                            No registered participants found ${selectedTourId ? 'for this tournament' : ''}.
+                        </td>
+                    </tr>
+                    `;
+                } else {
+                    tbodyReg.innerHTML = filteredRegs.map(reg => {
+                        const tourTitle = localTournaments.find(t => t.id == reg.tournamentId)?.title || `Tournament #${reg.tournamentId}`;
+                        return `
+                        <tr class="border-b border-white/5 hover:bg-white/[0.02] transition-all text-sm">
+                            <td class="py-2.5 px-4 font-bold text-white">
+                                ${reg.playerName} <span class="text-xs text-neutral-500 font-normal">(User #${reg.userId})</span>
+                            </td>
+                            <td class="py-2.5 px-4 text-raival-secondary font-bold">${reg.inGameName || 'N/A'}</td>
+                            <td class="py-2.5 px-4 text-neutral-300 font-mono text-xs">${reg.phone || 'N/A'}</td>
+                            <td class="py-2.5 px-4 text-neutral-400 text-xs">${reg.paymentMethod || 'MTN'}</td>
+                            <td class="py-2.5 px-4 text-neutral-300 text-xs">${reg.modelTeam || 'N/A'} (Rating: ${reg.teamRating || 0})</td>
+                            <td class="py-2.5 px-4 text-xs font-mono text-neutral-500">${new Date(reg.registeredAt || Date.now()).toLocaleString()}</td>
+                            <td class="py-2.5 px-4 text-right">
+                                <button onclick="removeParticipant(${reg.userId}, ${reg.tournamentId})" class="text-raival-danger hover:text-white hover:bg-raival-danger/15 p-1 px-2 rounded transition-all text-xs font-bold">
+                                    <i class="fa-solid fa-user-minus mr-1"></i> Remove
+                                </button>
+                            </td>
+                        </tr>
+                        `;
+                    }).join('');
+                }
+            }
+        }
+
+        window.removeParticipant = async function(userId, tournamentId) {
+            if (!confirm(`Are you sure you want to remove participant User #${userId} from Tournament #${tournamentId}? This will delete their registration record from the system.`)) {
+                return;
+            }
+            try {
+                if (window.supabase) {
+                    await window.supabase.from("registrations").delete().eq("id", `reg_${userId}_${tournamentId}`);
+                    logAction(`Removed participant User #${userId} from Tournament #${tournamentId}`);
+                } else {
+                    localRegistrations = localRegistrations.filter(r => !(r.userId == userId && r.tournamentId == tournamentId));
+                    renderPaymentsAndRegistrations();
+                    renderTournaments();
+                    logAction(`[Local Mode] Removed participant User #${userId} from Tournament #${tournamentId}`);
+                }
+            } catch (err) {
+                alert("Failed to remove participant: " + err.message);
+            }
+        }
+
+        window.simulateJoinTournament = async function() {
+            const playerName = document.getElementById("sim-player-name").value.trim() || "Kofi_Striker";
+            const inGameName = document.getElementById("sim-ingame-name").value.trim() || `${playerName}_DLS`;
+            const tourIdVal = document.getElementById("sim-tour-select").value;
+            if (!tourIdVal) {
+                alert("Please select a tournament to simulate registration.");
+                return;
+            }
+            const tournamentId = parseInt(tourIdVal);
+            const userId = Math.floor(Math.random() * 900) + 100;
+            
+            const regMap = {
+                id: Math.floor(Math.random() * 10000) + 5000,
+                userId: userId,
+                tournamentId: tournamentId,
+                playerName: playerName,
+                inGameName: inGameName,
+                paymentMethod: "MTN MoMo",
+                phone: "024" + Math.floor(1000000 + Math.random() * 9000000),
+                registeredAt: Date.now(),
+                teamRating: 85 + Math.floor(Math.random() * 15),
+                modelTeam: "Black Stars FC"
+            };
+
+            const tournament = localTournaments.find(t => t.id === tournamentId);
+            const tTitle = tournament ? tournament.title : `Tournament #${tournamentId}`;
+
+            if (window.supabase) {
+                try {
+                    await window.supabase.from("registrations").upsert({ id: `reg_${userId}_${tournamentId}`, ...regMap });
+                    
+                    // Increment player count in Supabase too for realism
+                    if (tournament) {
+                        const nextPlayers = Math.min(tournament.maxPlayers, tournament.players + 1);
+                        await window.supabase.from("tournaments").update({ players: nextPlayers }).eq("id", tournament.id);
+                    }
+                    showNotification(`Triggering registration for ${playerName}...`, "info");
+                } catch (e) {
+                    alert("Supabase sync failed: " + e.message);
+                }
+            } else {
+                // Offline Sandbox simulation
+                localRegistrations.push(regMap);
+                if (tournament) {
+                    tournament.players = Math.min(tournament.maxPlayers, tournament.players + 1);
+                }
+                
+                // Directly trigger the automated alert sequence since snapshot listener is inactive in offline mode
+                logAction(`🎮 PLAYER JOINED (SANDBOX): ${playerName} successfully registered for ${tTitle}!`, "System");
+                playAdminNotificationSound();
+                showNotification(`🎮 ${playerName} joined "${tTitle}"!`, "info");
+                
+                renderPaymentsAndRegistrations();
+                renderTournaments();
+            }
+        };
+
+        function renderTournaments() {
+            const tbody = document.getElementById("tournaments-list");
+            if (!tbody) return;
+            if (isLoadingTournaments) {
+                tbody.innerHTML = window.getTableLoader(8, "SYNCHRONIZING TOURNAMENTS...");
+                return;
+            }
+            tbody.innerHTML = localTournaments.map(t => {
+                const isHidden = t.ishidden === true || t.ishidden === "true" || t.isHidden === true;
+                const hiddenBadge = isHidden ? `<span class="ml-2 px-1.5 py-0.5 rounded text-[9px] font-black uppercase bg-raival-accent/20 border border-raival-accent/30 text-raival-accent tracking-wider"><i class="fa-solid fa-eye-slash mr-1"></i>HIDDEN</span>` : '';
+                const fee = t.coinentryfee !== undefined ? t.coinentryfee : (t.coinEntryFee !== undefined ? t.coinEntryFee : (t.entryfee || t.entryFee || 0));
+                const prize = t.coinprize !== undefined ? t.coinprize : (t.coinPrize !== undefined ? t.coinPrize : (t.prize || 0));
+                const maxP = t.maxplayers || t.maxPlayers || 16;
+                const playersCount = localRegistrations.filter(r => r.tournamentId == t.id).length;
+                const maxCount = maxP;
+                return `
+                <tr class="border-b border-white/5 hover:bg-white/[0.02] transition-all text-sm">
+                    <td class="py-3 px-4 font-mono text-raival-secondary font-bold">#${t.id}</td>
+                    <td class="py-3 px-4 font-bold text-white">
+                        <div class="flex items-center flex-wrap gap-1.5">
+                            <span>${t.title}</span>
+                            ${hiddenBadge}
+                        </div>
+                    </td>
+                    <td class="py-3 px-4 text-neutral-300">${t.game}</td>
+                    <td class="py-3 px-4 text-raival-primary font-bold">🪙 ${fee}</td>
+                    <td class="py-3 px-4 text-raival-secondary font-bold">🪙 ${prize}</td>
+                    <td class="py-3 px-4 text-neutral-400 font-mono">${playersCount}/${maxCount}</td>
+                    <td class="py-3 px-4">
+                        <span class="px-2 py-0.5 rounded text-xs font-bold ${t.status === 'Open' ? 'bg-raival-success/15 text-raival-success' : 'bg-neutral-800 text-neutral-400'}">
+                            ${t.status}
+                        </span>
+                    </td>
+                    <td class="py-3 px-4 text-right space-x-1">
+                        <button onclick="openEditTournamentModal(${t.id})" class="text-raival-primary hover:text-white hover:bg-raival-primary/15 p-1 px-2 rounded transition-all text-xs font-bold">
+                            <i class="fa-solid fa-pen-to-square"></i> Edit
+                        </button>
+                        <button onclick="toggleHideTournament(${t.id})" class="${isHidden ? 'text-raival-secondary hover:bg-raival-secondary/15' : 'text-neutral-400 hover:text-white hover:bg-white/10'} p-1 px-2 rounded transition-all text-xs font-bold">
+                            <i class="fa-solid ${isHidden ? 'fa-eye' : 'fa-eye-slash'}"></i> ${isHidden ? 'Unhide' : 'Hide'}
+                        </button>
+                        <button onclick="deleteTournament(${t.id})" class="text-raival-danger hover:text-white hover:bg-raival-danger/15 p-1 px-2 rounded transition-all text-xs font-bold">
+                            <i class="fa-solid fa-trash-can"></i> Delete
+                        </button>
+                    </td>
+                </tr>
+                `;
+            }).join('');
+
+            // Update stats
+            updateStatsDashboard();
+        }
+
+        function renderUsers() {
+            const tbody = document.getElementById("users-list");
+            if (!tbody) return;
+            if (isLoadingUsers) {
+                tbody.innerHTML = window.getTableLoader(7, "LOADING GAMER PROFILES...");
+                return;
+            }
+            tbody.innerHTML = localUsers.map(u => `
+                <tr class="border-b border-white/5 hover:bg-white/[0.02] transition-all text-sm">
+                    <td class="py-3 px-4 font-bold text-white">
+                        ${u.username}
+                        ${u.role === 'admin' ? '<span class="ml-2 px-1.5 py-0.5 rounded text-[9px] font-black uppercase bg-raival-primary text-black tracking-wider"><i class="fa-solid fa-user-shield"></i> ADMIN</span>' : ''}
+                    </td>
+                    <td class="py-3 px-4 font-mono text-neutral-400 text-xs">${u.email}</td>
+                    <td class="py-3 px-4 text-raival-primary font-bold font-mono">🪙 ${u.coinBalance}</td>
+                    <td class="py-3 px-4 text-raival-secondary font-bold font-mono">${u.xp} XP</td>
+                    <td class="py-3 px-4 text-raival-accent font-bold font-mono">💎 ${u.raivalPoints}</td>
+                    <td class="py-3 px-4">
+                        <span class="px-2 py-0.5 rounded text-xs font-bold ${u.status === 'Active' ? 'bg-raival-success/15 text-raival-success' : 'bg-raival-danger/15 text-raival-danger'}">
+                            ${u.status}
+                        </span>
+                    </td>
+                    <td class="py-3 px-4 text-right space-x-2">
+                        ${u.role === 'admin' ? `
+                            <span class="text-xs text-neutral-500 font-bold italic mr-2"><i class="fa-solid fa-shield-halved"></i> System Protected</span>
+                        ` : `
+                            <button onclick="toggleBanUser('${u.username}')" class="p-1 px-2.5 rounded text-xs font-bold transition-all ${u.status === 'Active' ? 'bg-raival-danger/15 text-raival-danger hover:bg-raival-danger hover:text-white' : 'bg-raival-success/15 text-raival-success hover:bg-raival-success hover:text-black'}">
+                                ${u.status === 'Active' ? 'Ban' : 'Activate'}
+                            </button>
+                        `}
+                        <button onclick="promptEditBalance('${u.username}')" class="bg-raival-surfaceLight text-white hover:bg-raival-primary hover:text-black p-1 px-2.5 rounded transition-all text-xs font-bold">
+                            Add Coins
+                        </button>
+                    </td>
+                </tr>
+            `).join('');
+
+            // Update stats
+            updateStatsDashboard();
+        }
+
+        function renderDisputes() {
+            const container = document.getElementById("disputes-container");
+            if (!container) return;
+            if (isLoadingDisputes) {
+                container.innerHTML = window.getGridLoader("RETRIEVING CLOUD DISPUTES...");
+                return;
+            }
+            if (localDisputes.length === 0) {
+                container.innerHTML = `
+                    <div class="text-center py-8 text-neutral-500">
+                        <i class="fa-solid fa-check-double text-raival-success text-3xl mb-2"></i>
+                        <p class="text-sm">All match scores fully verified. No disputes reported.</p>
+                    </div>
+                `;
+                const elDisp = document.getElementById("stat-disputes");
+                if (elDisp) elDisp.innerText = 0;
+                return;
+            }
+            container.innerHTML = localDisputes.map(d => `
+                <div class="bg-raival-surfaceLight border border-raival-accent/20 rounded-xl p-4 space-y-3 relative overflow-hidden">
+                    <div class="absolute top-0 right-0 bg-raival-accent/10 text-raival-accent text-[9px] uppercase tracking-wider font-extrabold px-3 py-1 rounded-bl">
+                        Disputed Match
+                    </div>
+                    <div>
+                        <h4 class="text-sm font-bold text-white">${d.matchName}</h4>
+                        <span class="text-xs text-raival-secondary font-mono">${d.round} • Tournament #${d.tournamentId}</span>
+                    </div>
+                    <p class="text-xs text-neutral-300 bg-black/40 p-2.5 rounded-lg border border-white/5 font-mono">
+                        ⚠️ Reason: ${d.reason}
+                    </p>
+                    <div class="flex gap-2 justify-end">
+                        <button onclick="resolveDispute('${d.id}', 'player1')" class="bg-raival-success text-black text-xs font-black px-4 py-2 rounded-lg hover:brightness-110 active:scale-95 transition-all uppercase">
+                            Player 1 Win
+                        </button>
+                        <button onclick="resolveDispute('${d.id}', 'player2')" class="bg-raival-success text-black text-xs font-black px-4 py-2 rounded-lg hover:brightness-110 active:scale-95 transition-all uppercase">
+                            Player 2 Win
+                        </button>
+                        <button onclick="resolveDispute('${d.id}', 'cancel')" class="bg-neutral-800 text-white text-xs font-bold px-4 py-2 rounded-lg hover:bg-neutral-700 transition-all uppercase">
+                            Void Match
+                        </button>
+                    </div>
+                </div>
+            `).join('');
+
+            const elDisp = document.getElementById("stat-disputes");
+            if (elDisp) elDisp.innerText = localDisputes.length;
+        }
+
+        // Action Handlers
+        window.deleteTournament = async function(id) {
+            if (!confirm(`Are you sure you want to delete Tournament #${id}? This will remove it from all connected apps instantly.`)) return;
+            
+            if (window.supabase) {
+                try {
+                    await window.supabase.from("tournaments").delete().eq("id", id);
+                    logAction(`Deleted tournament #${id} from Supabase`);
+                } catch (e) {
+                    alert("Supabase Error: " + e.message);
+                }
+            } else {
+                localTournaments = localTournaments.filter(t => t.id !== id);
+                renderTournaments();
+                logAction(`[Sandbox Mode] Deleted tournament #${id} locally`);
+            }
+        };
+
+        window.toggleHideTournament = async function(id) {
+            const tournament = localTournaments.find(t => t.id === id);
+            if (!tournament) return;
+            const isHidden = tournament.isHidden === true || tournament.isHidden === "true";
+            const nextHidden = !isHidden;
+
+            if (window.supabase) {
+                try {
+                    await window.supabase.from("tournaments").update({ ishidden: nextHidden }).eq("id", id);
+                    logAction(`Toggled Tournament #${id} isHidden to ${nextHidden} on Supabase`);
+                    showNotification(`🤖 Tournament ${nextHidden ? 'hidden' : 'unhidden'} successfully!`, "info");
+                } catch (e) {
+                    alert("Supabase Error: " + e.message);
+                }
+            } else {
+                tournament.isHidden = nextHidden;
+                renderTournaments();
+                logAction(`[Sandbox Mode] Toggled Tournament #${id} isHidden to ${nextHidden}`);
+                showNotification(`Tournament ${nextHidden ? 'hidden' : 'unhidden'} successfully!`, "info");
+            }
+        };
+
+        window.openEditTournamentModal = function(id) {
+            const tournament = localTournaments.find(t => t.id === id);
+            if (!tournament) return;
+            
+            document.getElementById("edit-t-id").value = tournament.id;
+            document.getElementById("edit-t-title").value = tournament.title || "";
+            document.getElementById("edit-t-game").value = tournament.game || "Dream League Soccer";
+            document.getElementById("edit-t-fee").value = tournament.coinentryfee !== undefined ? tournament.coinentryfee : (tournament.coinEntryFee !== undefined ? tournament.coinEntryFee : (tournament.entryfee || tournament.entryFee || 0));
+            document.getElementById("edit-t-prize").value = tournament.coinprize !== undefined ? tournament.coinprize : (tournament.coinPrize !== undefined ? tournament.coinPrize : (tournament.prize || 0));
+            document.getElementById("edit-t-max").value = tournament.maxplayers || tournament.maxPlayers || 16;
+            document.getElementById("edit-t-date").value = tournament.date || "";
+            document.getElementById("edit-t-time").value = tournament.time || "";
+            document.getElementById("edit-t-format").value = tournament.format || "Knockout";
+            document.getElementById("edit-t-status").value = tournament.status || "Open";
+
+            document.getElementById("edit-tournament-modal").classList.remove("hidden");
+        };
+
+        window.closeEditTournamentModal = function() {
+            document.getElementById("edit-tournament-modal").classList.add("hidden");
+        };
+
+        window.saveEditedTournament = async function(e) {
+            if (e) e.preventDefault();
+            const id = parseInt(document.getElementById("edit-t-id").value);
+            const title = document.getElementById("edit-t-title").value;
+            const game = document.getElementById("edit-t-game").value;
+            const coinEntryFee = parseInt(document.getElementById("edit-t-fee").value);
+            const coinPrize = parseInt(document.getElementById("edit-t-prize").value);
+            const maxPlayers = parseInt(document.getElementById("edit-t-max").value);
+            const date = document.getElementById("edit-t-date").value;
+            const time = document.getElementById("edit-t-time").value;
+            const format = document.getElementById("edit-t-format").value;
+            const status = document.getElementById("edit-t-status").value;
+
+            const existingT = localTournaments.find(t => t.id === id) || {};
+            
+            const updatedT = {
+                ...existingT,
+                id,
+                title,
+                game,
+                coinEntryFee,
+                coinPrize,
+                maxPlayers,
+                date,
+                time,
+                format,
+                status
+            };
+
+            // Auto-assign background if game changed
+            const bgMap = {
+                "DLS": ["dls_bg_new1.jpg", "dls_bg_new2.jpg", "dls_bg_new3.jpg", "dls_bg_new4.jpg"],
+                "FC Mobile": ["fc_bg_new1.jpg", "fc_bg_new2.jpg", "fc_bg_new3.jpg", "fc_bg_new4.jpg"],
+                "eFootball": ["bg_efootball_1.jpg", "bg_efootball_2.jpg", "bg_efootball_3.jpg"]
+            };
+            const bgs = bgMap[game] || bgMap["DLS"];
+            updatedT.banner = bgs[Math.floor(Math.random() * bgs.length)];
+
+            if (!window.supabase) {
+                alert("❌ Supabase not connected! Check internet and reload Admin Console.");
+                return;
+            }
+            try {
+                await window.supabase.from("tournaments").upsert({
+                    id, title, game,
+                    entryfee: coinEntryFee, coinentryfee: coinEntryFee,
+                    prize: coinPrize, coinprize: coinPrize,
+                    maxplayers: maxPlayers,
+                    date, time, format, status,
+                    banner: updatedT.banner,
+                    ishidden: existingT.isHidden || false,
+                    isautohosted: existingT.isAutoHosted !== false
+                });
+                logAction(`Updated Tournament #${id} on Supabase`);
+                showNotification(`🤖 Updated Tournament: "${title}"`, "success");
+            } catch (err) {
+                alert("Supabase Error: " + err.message);
+            }
+            closeEditTournamentModal();
+        };
+
+        window.toggleBanUser = async function(username) {
+            const user = localUsers.find(u => u.username === username);
+            if (!user) return;
+            const nextStatus = user.status === "Active" ? "Banned" : "Active";
+            
+            if (window.supabase) {
+                try {
+                    await window.supabase.from("users").update({ status: nextStatus }).eq("username", username);
+                    logAction(`Toggled ${username} status to ${nextStatus} on Supabase`);
+                } catch (e) {
+                    alert("Supabase Error: " + e.message);
+                }
+            } else {
+                user.status = nextStatus;
+                renderUsers();
+                logAction(`[Sandbox Mode] Toggled ${username} status to ${nextStatus}`);
+            }
+        };
+
+        window.createAdminAccountDirect = async function(username, fullName, email, phone) {
+            const exists = localUsers.find(u => u.username.toLowerCase() === username.toLowerCase() || u.email.toLowerCase() === email.toLowerCase());
+            if (exists) {
+                alert("Error: A gamer or administrator with that username or email already exists!");
+                return;
+            }
+
+            const newAdmin = {
+                id: Math.floor(10000 + Math.random() * 90000),
+                username: username,
+                fullName: fullName,
+                email: email,
+                phone: phone,
+                role: "admin",
+                status: "Active",
+                coinBalance: 5000,
+                xp: 2500,
+                raivalPoints: 500
+            };
+
+            if (window.supabase) {
+                try {
+                    await window.supabase.from("users").upsert({ username, ...newAdmin });
+                    logAction(`Created new Cloud Administrator account: "${username}" (${email})`);
+                    showNotification(`🤖 Registered Cloud Admin: "${username}"`, "success");
+                } catch (err) {
+                    alert("Supabase Error: " + err.message);
+                }
+            } else {
+                localUsers.unshift(newAdmin);
+                renderUsers();
+                logAction(`[Sandbox] Created local Administrator: "${username}" (${email})`);
+                showNotification(`Registered local Admin: "${username}"`, "success");
+            }
+        };
+
+        window.adjustUserCoins = async function(username, amount) {
+            const user = localUsers.find(u => u.username.toLowerCase() === username.toLowerCase());
+            if (!user) return;
+
+            if (window.supabase) {
+                try {
+                    await window.supabase.from("users").update({ coinBalance: user.coinBalance + amount }).eq("username", user.username);
+                    logAction(`Adjusted balance for ${user.username} by ${amount} coins on Supabase`);
+                } catch (e) {
+                    alert("Supabase Error: " + e.message);
+                }
+            } else {
+                user.coinBalance += amount;
+                renderUsers();
+                logAction(`[Sandbox Mode] Adjusted balance for ${user.username} by ${amount} coins`);
+            }
+        };
+
+        window.promptEditBalance = async function(username) {
+            const amount = prompt(`Enter coin adjustment for ${username} (e.g. 500 to add, -200 to deduct):`);
+            if (amount === null || isNaN(amount)) return;
+            const parsed = parseInt(amount);
+            await adjustUserCoins(username, parsed);
+        };
+
+        window.resolveDispute = async function(id, winner) {
+            if (window.supabase) {
+                try {
+                    await window.supabase.from("tournament_verifications").delete().eq("id", id);
+                    logAction(`Resolved dispute ${id} as winner: ${winner} on Supabase`);
+                } catch (e) {
+                    alert("Supabase Error: " + e.message);
+                }
+            } else {
+                localDisputes = localDisputes.filter(d => d.id !== id);
+                renderDisputes();
+                logAction(`[Sandbox] Resolved dispute ${id} as winner: ${winner}`);
+            }
+        };
+
+        window.createTournamentDirect = async function(title, game, coinEntryFee, coinPrize, maxPlayers, date, time, format) {
+            const newT = {
+                title,
+                game,
+                entryfee: 0.0,
+                coinentryfee: coinEntryFee || 0,
+                prize: 0.0,
+                coinprize: coinPrize || 0,
+                players: 0,
+                maxplayers: maxPlayers || 16,
+                status: "Open",
+                date: date || "",
+                time: time || "",
+                description: "Compete in this elite match under automatic tournament coordination and real-time ledger payouts.",
+                mode: "1 vs 1",
+                map: "Dream Arena",
+                rules: "5-MINUTE RULE: You must check in within 5 minutes or face disqualification. 15-MINUTE MATCH LIMIT: All matches auto-resolve after 15 minutes.",
+                schedule: "Round 1: 14:00 GMT\nSemi-finals: 15:30 GMT\nGrand Finals: 17:00 GMT",
+                prizedistribution: "1st Place: 70%\n2nd Place: 30%",
+                contact: "0241112222",
+                organizer: "Raival Admin",
+                format: format || "Knockout",
+                style: format === "Knockout" ? "World Cup Style" : "EPL Style",
+                ishidden: false,
+                isautohosted: true
+            };
+
+            // Auto-assign vibrant background based on game type
+            const bgMap = {
+                "DLS": ["dls_bg_new1.jpg", "dls_bg_new2.jpg", "dls_bg_new3.jpg", "dls_bg_new4.jpg"],
+                "FC Mobile": ["fc_bg_new1.jpg", "fc_bg_new2.jpg", "fc_bg_new3.jpg", "fc_bg_new4.jpg"],
+                "eFootball": ["bg_efootball_1.jpg", "bg_efootball_2.jpg", "bg_efootball_3.jpg"]
+            };
+            const bgs = bgMap[game] || bgMap["DLS"];
+            newT.banner = bgs[Math.floor(Math.random() * bgs.length)];
+
+            if (!window.supabase) {
+                alert("❌ Supabase not connected! Check internet and reload Admin Console.");
+                return;
+            }
+            try {
+                const { data, error } = await window.supabase
+                    .from("tournaments")
+                    .insert(newT)
+                    .select()
+                    .single();
+
+                if (error) throw error;
+                if (!data) throw new Error("Supabase did not return the created tournament.");
+
+                logAction(`Created new Cloud Tournament: "${title}" (#${data.id})`);
+                showNotification(`Tournament "${title}" successfully synced & created on Supabase!`, "success");
+                return { success: true, data };
+            } catch (err) {
+                showNotification(`Cloud Sync Failed: ${err.message}`, "error");
+                alert("Supabase Error: " + err.message);
+                return { success: false, error: err };
+            }
+        };
+
+        // Form Submit for Tournament Creation
+        const tFeeEl = document.getElementById("t-fee");
+        const tMaxEl = document.getElementById("t-max");
+        const tPrizeEl = document.getElementById("t-prize");
+
+        function updateCalculatedPrizePool() {
+            if (tFeeEl && tMaxEl && tPrizeEl) {
+                const fee = parseInt(tFeeEl.value) || 0;
+                const slots = parseInt(tMaxEl.value) || 16;
+                tPrizeEl.value = fee * slots;
+            }
+        }
+
+        if (tFeeEl && tMaxEl) {
+            tFeeEl.addEventListener("input", updateCalculatedPrizePool);
+            tMaxEl.addEventListener("change", updateCalculatedPrizePool);
+        }
+
+        document.getElementById("create-tournament-form").addEventListener("submit", async (e) => {
+            e.preventDefault();
+            const title = document.getElementById("t-title").value;
+            const game = document.getElementById("t-game").value;
+            const coinEntryFee = parseInt(document.getElementById("t-fee").value);
+            const coinPrize = parseInt(document.getElementById("t-prize").value);
+            const maxPlayers = parseInt(document.getElementById("t-max").value);
+            const date = document.getElementById("t-date").value;
+            const time = document.getElementById("t-time").value;
+            const format = document.getElementById("t-format").value;
+
+            const result = await window.createTournamentDirect(title, game, coinEntryFee, coinPrize, maxPlayers, date, time, format);
+            if (result?.success) {
+                document.getElementById("create-tournament-form").reset();
+                updateCalculatedPrizePool();
+            }
+        });
+
+        // Setup Supabase connection
+        document.getElementById("connect-supabase").addEventListener("click", async () => {
+            const supabaseUrl = document.getElementById("fb-apikey").value;
+            const supabaseAnonKey = document.getElementById("fb-projectid").value;
+
+            if (!supabaseUrl || !supabaseAnonKey) {
+                alert("Please fill in your Supabase URL and anon key.");
+                return;
+            }
+
+            try {
+                // Set loading flags to true on Supabase network data fetch start
+                isLoadingTournaments = true;
+                isLoadingUsers = true;
+                isLoadingDisputes = true;
+                isLoadingRegistrations = true;
+                isLoadingTransactions = true;
+
+                // Force render with loading spinners instantly
+                renderTournaments();
+                renderUsers();
+                renderDisputes();
+                renderPaymentsAndRegistrations();
+
+                window.supabase = createClient(supabaseUrl, supabaseAnonKey);
+
+                // Show connected state
+                document.getElementById("connection-status").innerHTML = `
+                    <div class="flex items-center gap-3">
+                        <div class="flex items-center gap-2 text-raival-success text-sm bg-raival-success/15 border border-raival-success/30 px-4 py-2.5 rounded-xl">
+                            <i class="fa-solid fa-circle-check"></i>
+                            <span class="font-bold">Live Synced with Supabase</span>
+                        </div>
+                        <button id="seed-supabase-btn" onclick="window.seedSupabaseDatabase()" class="bg-raival-primary text-black font-black uppercase text-xs tracking-wider px-4 py-2.5 rounded-xl hover:brightness-110 active:scale-95 transition-all">
+                            Seed Live Supabase
+                        </button>
+                    </div>
+                `;
+
+                // Initial data fetch + realtime subscriptions
+                async function setupRealtime(table, onData, onErrorLabel, onError) {
+                    const { data, error } = await window.supabase.from(table).select('*');
+                    if (error) {
+                        console.error(`Supabase fetch failed (${table}):`, error);
+                        if (onError) onError(error);
+                        return;
+                    }
+                    if (data) {
+                        onData(data);
+                    }
+                    window.supabase.channel(`${table}-changes`)
+                        .on('postgres_changes',
+                            { event: '*', schema: 'public', table },
+                            async () => {
+                                const { data: refreshData } = await window.supabase.from(table).select('*');
+                                if (refreshData) onData(refreshData);
+                            }
+                        )
+                        .subscribe();
+                }
+
+                setupRealtime('tournaments', (data) => {
+                    isLoadingTournaments = false;
+                    localTournaments = data || [];
+                    renderTournaments();
+                }, 'tournaments', (error) => {
+                    isLoadingTournaments = false;
+                    renderTournaments();
+                    logAction(`[Supabase Error] Listen failed on tournaments: ${error.message}`);
+                    showNotification(`Supabase Permission Error: ${error.message}`, "error");
+                });
+
+                setupRealtime('users', (data) => {
+                    isLoadingUsers = false;
+                    localUsers = data || [];
+                    renderUsers();
+                }, 'users', (error) => {
+                    isLoadingUsers = false;
+                    renderUsers();
+                    logAction(`[Supabase Error] Listen failed on users: ${error.message}`);
+                });
+
+                setupRealtime('tournament_verifications', (data) => {
+                    isLoadingDisputes = false;
+                    localDisputes = (data || []).map(r => ({ id: r.id, ...r }));
+                    renderDisputes();
+                }, 'verifications', (error) => {
+                    isLoadingDisputes = false;
+                    renderDisputes();
+                    logAction(`[Supabase Error] Listen failed on disputes: ${error.message}`);
+                });
+
+                setupRealtime('marketplace_listings', (data) => {
+                    localListings = data || [];
+                    updateStatsDashboard();
+                }, 'marketplace', (error) => {
+                    console.error("Supabase Listen Failed (marketplace):", error);
+                });
+
+                setupRealtime('momo_transactions', (data) => {
+                    isLoadingTransactions = false;
+                    localTransactions = data || [];
+                    updateStatsDashboard();
+                }, 'momo_transactions', (error) => {
+                    isLoadingTransactions = false;
+                    updateStatsDashboard();
+                    console.error("Supabase Listen Failed (momo_transactions):", error);
+                });
+
+                setupRealtime('registrations', (data) => {
+                    isLoadingRegistrations = false;
+                    localRegistrations = data || [];
+                    const newlyAdded = [];
+
+                    (data || []).forEach(reg => {
+                        const regKey = reg.id || `reg_${reg.userId}_${reg.tournamentId}`;
+                        if (!seenRegistrationIds.has(regKey)) {
+                            seenRegistrationIds.add(regKey);
+                            if (!isInitialRegistrationsLoad) {
+                                newlyAdded.push(reg);
+                            }
+                        }
+                    });
+
+                    if (isInitialRegistrationsLoad) {
+                        isInitialRegistrationsLoad = false;
+                    } else if (newlyAdded.length > 0) {
+                        newlyAdded.forEach(reg => {
+                            const tournament = localTournaments.find(t => t.id === reg.tournamentId);
+                            const tTitle = tournament ? tournament.title : `Tournament #${reg.tournamentId}`;
+                            logAction(`🎮 PLAYER JOINED: ${reg.playerName} successfully registered for ${tTitle}!`, "System");
+                            playAdminNotificationSound();
+                            showNotification(`🎮 ${reg.playerName} joined "${tTitle}"!`, "info");
+                        });
+                    }
+
+                    renderPaymentsAndRegistrations();
+                    renderTournaments();
+                }, 'registrations', (error) => {
+                    isLoadingRegistrations = false;
+                    renderPaymentsAndRegistrations();
+                    renderTournaments();
+                    console.error("Supabase Listen Failed (registrations):", error);
+                });
+
+                logAction("Connected securely to Supabase backend");
+            } catch (err) {
+                alert("Initialization Failed: " + err.message);
+            }
+        });
+
+        // Seed Live Database with Pre-populated Mock Variables
+        window.seedSupabaseDatabase = async function() {
+            if (!window.supabase) {
+                alert("Please connect to Supabase first!");
+                return;
+            }
+            if (!confirm("Are you sure you want to seed the live Supabase database with sample data? This will overwrite or add sample tournaments, users, listings, registrations, and transactions.")) {
+                return;
+            }
+            
+            const btn = document.getElementById("seed-supabase-btn");
+            if (!btn) return;
+            const originalText = btn.innerText;
+            btn.innerText = "SEEDING...";
+            btn.disabled = true;
+            btn.style.opacity = "0.7";
+            
+            try {
+                // 1. Seed Tournaments
+                for (const t of localTournaments) {
+                    await window.supabase.from("tournaments").upsert({
+                        id: t.id, title: t.title, game: t.game,
+                        entryfee: t.coinEntryFee || t.entryFee || 0,
+                        coinentryfee: t.coinEntryFee || 0,
+                        prize: t.prize || 0, coinprize: t.coinPrize || 0,
+                        players: t.players || 0, maxplayers: t.maxPlayers || 16,
+                        status: t.status || "Open", date: t.date || "", time: t.time || "",
+                        description: t.description || "", mode: t.mode || "1 vs 1",
+                        map: t.map || "Dream Arena", rules: t.rules || "",
+                        schedule: t.schedule || "", prizedistribution: t.prizeDistribution || "",
+                        contact: t.contact || "", banner: t.banner || "",
+                        organizer: t.organizer || "Admin", format: t.format || "Knockout",
+                        style: t.style || "World Cup Style",
+                        ishidden: t.isHidden || false, isautohosted: t.isAutoHosted !== false
+                    });
+                }
+                
+                // 2. Seed Users
+                const enrichedUsers = localUsers.map(u => ({
+                    ...u,
+                    fullName: u.fullName || (u.username + " FullName"),
+                    phone: u.phone || (u.username === "Admin" ? "0244000000" : "0244111222"),
+                    bio: u.bio || "Esports competitor from Ghana.",
+                    paymentMethod: u.paymentMethod || "MTN",
+                    balance: u.balance || 100.0,
+                    totalWinnings: u.totalWinnings || 0.0,
+                    tournamentsPlayed: u.tournamentsPlayed || 0,
+                    wins: u.wins || 0,
+                    losses: u.losses || 0,
+                    winStreak: u.winStreak || 0,
+                    dlsHandle: u.dlsHandle || "",
+                    efootballHandle: u.efootballHandle || "",
+                    discordHandle: u.discordHandle || "",
+                    level: u.level || 1,
+                    clanTag: u.clanTag || "GHA",
+                    createdAt: u.createdAt || Date.now(),
+                    coinsClaimedFromTopUp: u.coinsClaimedFromTopUp || false,
+                    welcomeBonusClaimed: u.welcomeBonusClaimed || false
+                }));
+                for (const u of enrichedUsers) {
+                    await window.supabase.from("users").upsert({ username: u.username, ...u });
+                }
+                
+                // 3. Seed Marketplace Listings
+                for (const l of localListings) {
+                    await window.supabase.from("marketplace_listings").upsert({ id: l.id, ...l });
+                }
+                
+                // 4. Seed MoMo Transactions
+                for (const tx of localTransactions) {
+                    await window.supabase.from("momo_transactions").upsert({ id: tx.id, ...tx });
+                }
+                
+                // 5. Seed Tournament Registrations
+                for (const reg of localRegistrations) {
+                    await window.supabase.from("registrations").upsert({ id: `reg_${reg.userId}_${reg.tournamentId}`, ...reg });
+                }
+                
+                // 6. Seed Tournament Matches
+                const mockMatches = [
+                    { id: "match_101_1", tournamentId: 101, player1: "Akwasi_Gamer", player2: "FireStriker", player1Score: 2, player2Score: 1, status: "Completed", round: "Quarter-finals", date: "2026-07-20", time: "18:30" },
+                    { id: "match_101_2", tournamentId: 101, player1: "Akwasi_Gamer", player2: "TBD", player1Score: 0, player2Score: 0, status: "Pending", round: "Semi-finals", date: "2026-07-20", time: "19:00" }
+                ];
+                for (const m of mockMatches) {
+                    await window.supabase.from("tournament_matches").upsert(m);
+                }
+                
+                showNotification("Supabase populated successfully!", "success");
+                logAction("Cloud database successfully seeded with initial mock structure.", "System");
+                playAdminNotificationSound();
+            } catch (err) {
+                console.error("Error seeding Supabase:", err);
+                showNotification(`Seeding failed: ${err.message}`, "danger");
+            } finally {
+                btn.innerText = originalText;
+                btn.disabled = false;
+                btn.style.opacity = "1";
+            }
+        };
+
+        // Tab Navigation
+        window.switchTab = function(tabIndex) {
+            const tabs = ["tab-tournaments", "tab-users", "tab-disputes", "tab-payments"];
+            const tabButtons = ["btn-tab-tournaments", "btn-tab-users", "btn-tab-disputes", "btn-tab-payments"];
+
+            tabs.forEach((t, i) => {
+                const el = document.getElementById(t);
+                const btn = document.getElementById(tabButtons[i]);
+                if (i === tabIndex) {
+                    el.classList.remove("hidden");
+                    btn.classList.add("border-raival-primary", "text-raival-primary");
+                    btn.classList.remove("border-transparent", "text-neutral-400");
+                } else {
+                    el.classList.add("hidden");
+                    btn.classList.remove("border-raival-primary", "text-raival-primary");
+                    btn.classList.add("border-transparent", "text-neutral-400");
+                }
+            });
+        };
+
+        // --- AI COPILOT LOGIC & STATE ENGINE ---
+        let aiHistory = [
+            { sender: "ai", text: "Welcome, Administrator. I am the Raival HQ AI Administrative Copilot, fully connected to your system database. Type any command above or use the quick actions below to orchestrate tournaments, adjust user balances, issue security bans, or resolve score disputes instantly." }
+        ];
+
+        function renderAIChat() {
+            const container = document.getElementById("ai-chat-history");
+            if (!container) return;
+            container.innerHTML = aiHistory.map(m => `
+                <div class="py-1">
+                    <span class="font-bold ${m.sender === 'user' ? 'text-raival-secondary' : 'text-raival-primary'} uppercase">
+                        ${m.sender === 'user' ? '👤 Admin' : '🤖 Copilot'}:
+                    </span>
+                    <span class="text-neutral-200">${m.text.replace(/\n/g, '<br>')}</span>
+                </div>
+            `).join('');
+            container.scrollTop = container.scrollHeight;
+        }
+
+        window.sendQuickPrompt = function(promptText) {
+            document.getElementById("ai-prompt-input").value = promptText;
+            document.getElementById("ai-copilot-form").dispatchEvent(new Event('submit'));
+        };
+
+        function getSystemStatePrompt() {
+            return `
+=== CURRENT WEB SYSTEM STATE ===
+Registered Users:
+${localUsers.map(u => `- ${u.username} (${u.email}): Balance: ${u.coinBalance}, Status: ${u.status}`).join('\n')}
+
+Active Tournaments:
+${localTournaments.map(t => {
+    const pCount = localRegistrations.filter(r => r.tournamentId == t.id).length;
+    return `- #${t.id}: "${t.title}" for ${t.game}, Entry: ${t.coinEntryFee} coins, Prize: ${t.coinPrize} coins, Slots: ${pCount}/${t.maxPlayers}, Status: ${t.status}`;
+}).join('\n')}
+
+Pending Disputes:
+${localDisputes.map(d => `- ID: ${d.id}, Match: "${d.matchName}", Reason: "${d.reason}"`).join('\n')}
+================================
+`;
+        }
+
+        async function callGeminiAPI(prompt, apiKey) {
+            const models = [
+                "gemini-1.5-flash",
+                "gemini-2.5-flash",
+                "gemini-3.5-flash"
+            ];
+            
+            let lastError = null;
+            const systemInstruction = `You are "Raival AI Administrative HQ Copilot", a high-performance system orchestrator.
+You can execute administrative commands on behalf of the user. To perform an action, you MUST end your message with a special JSON command block enclosed in \`\`\`json and \`\`\` like this:
+{
+  "command": "CREATE_TOURNAMENT",
+  "title": "Suhum Cup",
+  "game": "Dream League Soccer",
+  "coinEntryFee": 50,
+  "coinPrize": 500,
+  "maxPlayers": 16,
+  "date": "2026-07-25",
+  "time": "16:00",
+  "format": "Knockout"
+}
+Or:
+{
+  "command": "BAN_USER",
+  "username": "Akwasi_Gamer"
+}
+Or:
+{
+  "command": "ADJUST_COINS",
+  "username": "Akwasi_Gamer",
+  "amount": 250
+}
+Or:
+{
+  "command": "RESOLVE_DISPUTE",
+  "id": "disp_902",
+  "winner": "player1" // or "player2" or "cancel"
+}
+Or:
+{
+  "command": "CREATE_ADMIN",
+  "username": "yaw_admin",
+  "fullName": "Yaw Mensah",
+  "email": "yaw@raival.com",
+  "phone": "+233241112222"
+}
+
+Keep your responses concise, highly professional, and confirm the action you are taking. Use only valid JSON formatting for the command block.`;
+
+            const requestBody = {
+                contents: [
+                    { parts: [{ text: prompt }] }
+                ],
+                systemInstruction: {
+                    parts: [{ text: systemInstruction }]
+                },
+                generationConfig: {
+                    temperature: 0.3
+                }
+            };
+
+            for (const model of models) {
+                try {
+                    const url = `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${apiKey}`;
+                    console.log(`Attempting Admin AI chat with model: ${model}`);
+                    const response = await fetch(url, {
+                        method: 'POST',
+                        headers: {
+                            'Content-Type': 'application/json'
+                        },
+                        body: JSON.stringify(requestBody)
+                    });
+                    
+                    if (response.ok) {
+                        const data = await response.json();
+                        if (data && data.candidates && data.candidates[0] && data.candidates[0].content && data.candidates[0].content.parts && data.candidates[0].content.parts[0]) {
+                            return data.candidates[0].content.parts[0].text;
+                        }
+                    } else {
+                        const errText = await response.text();
+                        console.warn(`Model ${model} failed with status ${response.status}:`, errText);
+                        lastError = new Error(`Model ${model} returned code ${response.status}: ${errText}`);
+                    }
+                } catch (e) {
+                    console.error(`Fetch error with model ${model}:`, e);
+                    lastError = e;
+                }
+            }
+            throw lastError || new Error("All Gemini API models failed.");
+        }
+
+        function runSimulationAI(prompt) {
+            const normalized = prompt.toLowerCase();
+            let reply = "";
+            let commandBlock = null;
+            
+            if (normalized.includes("create") && (normalized.includes("tournament") || normalized.includes("cup") || normalized.includes("league"))) {
+                let title = "AI Generated Tournament";
+                const titleMatch = prompt.match(/called "([^"]+)"/i) || prompt.match(/called '([^']+)'/i) || prompt.match(/tournament ([A-Za-z0-9 ]+)/i);
+                if (titleMatch) title = titleMatch[1];
+                
+                let game = "Dream League Soccer";
+                if (normalized.includes("efootball")) game = "eFootball 2026";
+                else if (normalized.includes("cod") || normalized.includes("duty")) game = "Call of Duty: Mobile";
+                else if (normalized.includes("fifa")) game = "FIFA Mobile";
+                
+                let fee = 25;
+                const feeMatch = normalized.match(/fee (\d+)/) || normalized.match(/entry (\d+)/);
+                if (feeMatch) fee = parseInt(feeMatch[1]);
+                
+                let prize = 250;
+                const prizeMatch = normalized.match(/prize (\d+)/) || normalized.match(/pool (\d+)/);
+                if (prizeMatch) prize = parseInt(prizeMatch[1]);
+                
+                reply = `I have processed your request using standard simulation heuristics. I will orchestrate the tournament "${title}" on platform "${game}" with an entry fee of 🪙 ${fee} and a prize pool of 🪙 ${prize}. Generating the cloud tournament database entry...`;
+                
+                commandBlock = {
+                    command: "CREATE_TOURNAMENT",
+                    title,
+                    game,
+                    coinEntryFee: fee,
+                    coinPrize: prize,
+                    maxPlayers: 16,
+                    date: "2026-07-25",
+                    time: "18:00",
+                    format: "Knockout"
+                };
+            } else if (normalized.includes("ban") || normalized.includes("suspend") || normalized.includes("block")) {
+                const usersInPrompt = localUsers.filter(u => normalized.includes(u.username.toLowerCase()));
+                if (usersInPrompt.length > 0) {
+                    const user = usersInPrompt[0];
+                    reply = `Recognized registered gamer profile "${user.username}". I am executing an administrative security block to toggle their status to Banned/Suspended.`;
+                    commandBlock = {
+                        command: "BAN_USER",
+                        username: user.username
+                    };
+                } else {
+                    reply = `I recognized a ban request, but could not identify the target username from your command. Active players: ${localUsers.map(u => u.username).join(', ')}.`;
+                }
+            } else if (normalized.includes("add") || normalized.includes("give") || normalized.includes("coins") || normalized.includes("credit") || normalized.includes("adjust")) {
+                const amountMatch = normalized.match(/(\d+)/);
+                const amount = amountMatch ? parseInt(amountMatch[1]) : 100;
+                const usersInPrompt = localUsers.filter(u => normalized.includes(u.username.toLowerCase()));
+                
+                if (usersInPrompt.length > 0) {
+                    const user = usersInPrompt[0];
+                    reply = `Granting coin adjustments to gamer account "${user.username}". I am adding 🪙 ${amount} to their registered ledger balance.`;
+                    commandBlock = {
+                        command: "ADJUST_COINS",
+                        username: user.username,
+                        amount: amount
+                    };
+                } else {
+                    reply = `Could not match any active gamer username for coin adjustment. Available gamers: ${localUsers.map(u => u.username).join(', ')}.`;
+                }
+            } else if (normalized.includes("resolve") || normalized.includes("dispute") || normalized.includes("match")) {
+                const disputeMatch = normalized.match(/disp_\d+/);
+                const disputeId = disputeMatch ? disputeMatch[0] : (localDisputes[0]?.id || "disp_902");
+                let winner = "player1";
+                if (normalized.includes("player 2") || normalized.includes("player2")) winner = "player2";
+                else if (normalized.includes("void") || normalized.includes("cancel") || normalized.includes("draw")) winner = "cancel";
+                
+                reply = `Resolving contested match dispute for match record ID: ${disputeId}. Setting outcome status: Winner = ${winner}.`;
+                commandBlock = {
+                    command: "RESOLVE_DISPUTE",
+                    id: disputeId,
+                    winner
+                };
+            } else if (normalized.includes("create") && (normalized.includes("admin") || normalized.includes("administrator"))) {
+                let username = "new_admin";
+                let fullName = "New Admin";
+                let email = "admin_user@raival.com";
+                let phone = "+233240000000";
+
+                const emailMatch = prompt.match(/([a-zA-Z0-9._-]+@[a-zA-Z0-9._-]+\.[a-zA-Z0-9._-]+)/);
+                if (emailMatch) {
+                    email = emailMatch[1];
+                    username = email.split('@')[0] + "_admin";
+                }
+
+                const nameMatch = prompt.match(/called "([^"]+)"/i) || prompt.match(/called '([^']+)'/i) || prompt.match(/named ([A-Za-z0-9 ]+)/i);
+                if (nameMatch) {
+                    fullName = nameMatch[1];
+                    if (!emailMatch) {
+                        username = fullName.toLowerCase().replace(/[^a-z0-9]/g, "_") + "_admin";
+                        email = username + "@raival.com";
+                    }
+                }
+
+                reply = `Recognized registration request for new system administrator "${fullName}". Executing administrative orchestration commands...`;
+                commandBlock = {
+                    command: "CREATE_ADMIN",
+                    username,
+                    fullName,
+                    email,
+                    phone
+                };
+            } else {
+                reply = `Greetings! I am the Raival HQ AI Administrative Copilot. I can orchestrate game leagues, manage user balances, issue security bans, and verify disputed match scores in real-time.\n\nTry commands like:\n- "Create a tournament called 'Summer Cup 2026' with 20 entry and 200 prize"\n- "Ban user Akwasi_Gamer"\n- "Give FireStriker 500 coins"\n- "Resolve dispute disp_902 with winner player 2"`;
+            }
+            
+            return { reply, commandBlock };
+        }
+
+        async function executeAICommand(cmd) {
+            logAction(`AI executed Command: ${cmd.command}`, "AI Copilot");
+            
+            switch (cmd.command) {
+                case "CREATE_TOURNAMENT":
+                    const title = cmd.title || "AI Generated Tournament";
+                    const game = cmd.game || "Dream League Soccer";
+                    const fee = parseInt(cmd.coinEntryFee) || 25;
+                    const prize = parseInt(cmd.coinPrize) || 250;
+                    const max = parseInt(cmd.maxPlayers) || 16;
+                    const date = cmd.date || new Date().toISOString().split('T')[0];
+                    const time = cmd.time || "18:00";
+                    const format = cmd.format || "Knockout";
+                    
+                    const result = await window.createTournamentDirect(title, game, fee, prize, max, date, time, format);
+                    if (result?.success) {
+                        showNotification(`🤖 Created Tournament: "${title}"`, "success");
+                    }
+                    break;
+                    
+                case "BAN_USER":
+                    const username = cmd.username;
+                    if (username) {
+                        const user = localUsers.find(u => u.username.toLowerCase() === username.toLowerCase());
+                        if (user) {
+                            await toggleBanUser(user.username);
+                            showNotification(`🤖 Ban status toggled for: ${user.username}`, "info");
+                        } else {
+                            showNotification(`🤖 User "${username}" not found for ban action`, "error");
+                        }
+                    }
+                    break;
+                    
+                case "ADJUST_COINS":
+                    const uName = cmd.username;
+                    const amount = parseInt(cmd.amount);
+                    if (uName && !isNaN(amount)) {
+                        const user = localUsers.find(u => u.username.toLowerCase() === uName.toLowerCase());
+                        if (user) {
+                            await adjustUserCoins(user.username, amount);
+                            showNotification(`🤖 Adjusted ${user.username}'s balance by ${amount} coins`, "success");
+                        } else {
+                            showNotification(`🤖 User "${uName}" not found for coin adjustment`, "error");
+                        }
+                    }
+                    break;
+                    
+                case "RESOLVE_DISPUTE":
+                    const disputeId = cmd.id;
+                    const winner = cmd.winner; // player1, player2, cancel
+                    if (disputeId && winner) {
+                        await resolveDispute(disputeId, winner);
+                        showNotification(`🤖 Dispute ${disputeId} resolved (Winner: ${winner})`, "success");
+                    }
+                    break;
+                    
+                case "CREATE_ADMIN":
+                    const admUsername = cmd.username;
+                    const admFullName = cmd.fullName;
+                    const admEmail = cmd.email;
+                    const admPhone = cmd.phone || "+233200000000";
+                    if (admUsername && admFullName && admEmail) {
+                        await createAdminAccountDirect(admUsername, admFullName, admEmail, admPhone);
+                    } else {
+                        showNotification(`🤖 Missing required details for admin creation`, "error");
+                    }
+                    break;
+                    
+                default:
+                    console.warn("Unknown AI command:", cmd.command);
+            }
+        }
+
+        function parseAndExecuteAIResponse(text) {
+            const jsonMatch = text.match(/```json\s*([\s\S]*?)\s*```/) || text.match(/{[\s\S]*?}/);
+            if (jsonMatch) {
+                try {
+                    const rawJson = jsonMatch[1] || jsonMatch[0];
+                    const data = JSON.parse(rawJson);
+                    if (data.command) {
+                        executeAICommand(data);
+                        return data;
+                    }
+                } catch (e) {
+                    console.error("Failed to parse JSON command block from AI", e);
+                }
+            }
+            return null;
+        }
+
+        function showNotification(message, type = "success") {
+            const banner = document.createElement("div");
+            banner.className = `fixed bottom-4 right-4 z-[999] p-4 rounded-xl shadow-2xl flex items-center gap-3 border transition-all duration-300 transform translate-y-10 opacity-0`;
+            
+            if (type === "success") {
+                banner.className += " bg-raival-success/15 border-raival-success/30 text-raival-success";
+                banner.innerHTML = `<i class="fa-solid fa-circle-check text-xl"></i> <div><h4 class="font-bold text-sm">Action Confirmed</h4><p class="text-xs text-neutral-300">${message}</p></div>`;
+            } else if (type === "error") {
+                banner.className += " bg-raival-danger/15 border-raival-danger/30 text-raival-danger";
+                banner.innerHTML = `<i class="fa-solid fa-circle-xmark text-xl"></i> <div><h4 class="font-bold text-sm">Action Failed</h4><p class="text-xs text-neutral-300">${message}</p></div>`;
+            } else {
+                banner.className += " bg-raival-secondary/15 border-raival-secondary/30 text-raival-secondary";
+                banner.innerHTML = `<i class="fa-solid fa-info text-xl"></i> <div><h4 class="font-bold text-sm">System Update</h4><p class="text-xs text-neutral-300">${message}</p></div>`;
+            }
+            
+            document.body.appendChild(banner);
+            
+            setTimeout(() => {
+                banner.classList.remove("translate-y-10", "opacity-0");
+            }, 10);
+            
+            setTimeout(() => {
+                banner.classList.add("translate-y-10", "opacity-0");
+                setTimeout(() => {
+                    banner.remove();
+                }, 300);
+            }, 4000);
+        }
+
+        // --- AI COPILOT BINDINGS & LISTENERS ---
+        document.addEventListener("DOMContentLoaded", () => {
+            renderAIChat();
+            
+            // Save Key event
+            const saveBtn = document.getElementById("save-gemini-key");
+            if (saveBtn) {
+                saveBtn.addEventListener("click", () => {
+                    const key = document.getElementById("gemini-key-input").value.trim();
+                    if (key) {
+                        localStorage.setItem("gemini_api_key", key);
+                        const badge = document.getElementById("key-status-badge");
+                        if (badge) {
+                            badge.innerText = "Live AI Mode Active";
+                            badge.className = "text-raival-success font-bold";
+                        }
+                        showNotification("Gemini API Key saved successfully. Live AI enabled!", "success");
+                    } else {
+                        localStorage.removeItem("gemini_api_key");
+                        const badge = document.getElementById("key-status-badge");
+                        if (badge) {
+                            badge.innerText = "Sandbox (Simulated AI)";
+                            badge.className = "text-raival-secondary font-bold";
+                        }
+                        showNotification("Gemini API Key removed. Reverted to Sandbox simulation.", "info");
+                    }
+                });
+            }
+
+            // Form Submit event
+            const aiForm = document.getElementById("ai-copilot-form");
+            if (aiForm) {
+                aiForm.addEventListener("submit", async (e) => {
+                    e.preventDefault();
+                    const inputEl = document.getElementById("ai-prompt-input");
+                    const promptText = inputEl.value.trim();
+                    if (!promptText) return;
+
+                    // Add user message
+                    aiHistory.push({ sender: "user", text: promptText });
+                    renderAIChat();
+                    inputEl.value = "";
+
+                    const submitBtn = document.getElementById("ai-submit-btn");
+                    submitBtn.disabled = true;
+                    submitBtn.innerText = "Processing...";
+
+                    const key = localStorage.getItem("gemini_api_key");
+
+                    if (key) {
+                        try {
+                            const systemPrompt = getSystemStatePrompt();
+                            const fullPrompt = `${systemPrompt}\n\nUser Admin Command: ${promptText}`;
+                            
+                            const replyText = await callGeminiAPI(fullPrompt, key);
+                            aiHistory.push({ sender: "ai", text: replyText });
+                            renderAIChat();
+                            
+                            parseAndExecuteAIResponse(replyText);
+                        } catch (err) {
+                            console.error(err);
+                            aiHistory.push({ sender: "ai", text: `Error calling live Gemini API: ${err.message}. Falling back to sandbox parse.` });
+                            renderAIChat();
+                            
+                            const sim = runSimulationAI(promptText);
+                            aiHistory.push({ sender: "ai", text: sim.reply + "\n\n(Fallback Sandbox Mode executed)" });
+                            renderAIChat();
+                            if (sim.commandBlock) {
+                                executeAICommand(sim.commandBlock);
+                            }
+                        }
+                    } else {
+                        setTimeout(() => {
+                            const sim = runSimulationAI(promptText);
+                            aiHistory.push({ sender: "ai", text: sim.reply });
+                            renderAIChat();
+                            if (sim.commandBlock) {
+                                executeAICommand(sim.commandBlock);
+                            }
+                            submitBtn.disabled = false;
+                            submitBtn.innerText = "Ask";
+                        }, 800);
+                        return;
+                    }
+
+                    submitBtn.disabled = false;
+                    submitBtn.innerText = "Ask";
+                });
+            }
+
+            // Form Submit for Admin Creation
+            const adminForm = document.getElementById("create-admin-form");
+            if (adminForm) {
+                adminForm.addEventListener("submit", async (e) => {
+                    e.preventDefault();
+                    const username = document.getElementById("adm-username").value.trim();
+                    const fullName = document.getElementById("adm-fullname").value.trim();
+                    const email = document.getElementById("adm-email").value.trim();
+                    const phone = document.getElementById("adm-phone").value.trim();
+
+                    await createAdminAccountDirect(username, fullName, email, phone);
+                    adminForm.reset();
+                });
+            }
+
+            // Restore saved key on load
+            const keyInput = document.getElementById("gemini-key-input");
+            const initialKey = localStorage.getItem("gemini_api_key") || (keyInput ? keyInput.value : "") || "";
+            if (keyInput && initialKey) {
+                keyInput.value = initialKey;
+                if (!localStorage.getItem("gemini_api_key")) {
+                    localStorage.setItem("gemini_api_key", initialKey);
+                }
+                const badge = document.getElementById("key-status-badge");
+                if (badge) {
+                    badge.innerText = "Live AI Mode Active";
+                    badge.className = "text-raival-success font-bold";
+                }
+            }
+            
+            // Automatically establish Supabase cloud connection if pre-populated fields are present
+            const fbApiKey = document.getElementById("fb-apikey")?.value;
+            const fbProjectId = document.getElementById("fb-projectid")?.value;
+            if (fbApiKey && fbProjectId) {
+                setTimeout(() => {
+                    document.getElementById("connect-supabase")?.click();
+                }, 200);
+            }
+        });
+
+        // Initial setup
+        renderTournaments();
+        renderUsers();
+        renderDisputes();
+        updateStatsDashboard();
+        renderLogs();
+    </script>
+
+    <!-- Top Navigation Header -->
+    <header class="bg-raival-surface/90 border-b border-white/5 sticky top-0 z-50 backdrop-blur-md px-6 py-4 flex flex-col md:flex-row md:items-center justify-between gap-4">
+        <div class="flex items-center gap-3">
+            <div class="size-10 bg-raival-primary/10 border-2 border-raival-primary rounded-xl flex items-center justify-center">
+                <i class="fa-solid fa-shield text-raival-primary text-xl"></i>
+            </div>
+            <div>
+                <div class="flex items-center gap-2">
+                    <h1 class="text-lg font-black tracking-wider text-white">RAIVAL HQ</h1>
+                    <span class="text-[10px] bg-raival-primary/15 text-raival-primary font-black px-2 py-0.5 rounded tracking-widest uppercase">Admin Secure</span>
+                </div>
+                <p class="text-xs text-neutral-400">Desktop Web Management & Game League Orchestrator</p>
+            </div>
+        </div>
+
+        <div id="connection-status" class="flex items-center gap-3">
+            <div class="flex items-center gap-2 text-raival-secondary text-sm bg-raival-secondary/10 border border-raival-secondary/20 px-4 py-2 rounded-xl">
+                <i class="fa-solid fa-circle-nodes"></i>
+                <span class="font-bold">Sandbox Environment (Offline Cache Enabled)</span>
+            </div>
+        </div>
+    </header>
+
+    <!-- Stat Dashboard Hero -->
+    <section class="max-w-7xl w-full mx-auto p-4 md:p-6 grid grid-cols-1 md:grid-cols-4 gap-4">
+        <div class="bg-raival-surface border border-white/5 rounded-2xl p-5 flex items-center justify-between">
+            <div>
+                <span class="text-[11px] font-black text-neutral-400 uppercase tracking-wider">Number of Users</span>
+                <h3 id="stat-registered-players" class="text-2xl font-black text-white mt-1">0</h3>
+            </div>
+            <i class="fa-solid fa-users text-raival-primary text-3xl opacity-30"></i>
+        </div>
+        <div class="bg-raival-surface border border-white/5 rounded-2xl p-5 flex items-center justify-between">
+            <div>
+                <span class="text-[11px] font-black text-neutral-400 uppercase tracking-wider">Joined Tournaments</span>
+                <h3 id="stat-joined-tournaments" class="text-2xl font-black text-white mt-1">0</h3>
+            </div>
+            <i class="fa-solid fa-gamepad text-raival-secondary text-3xl opacity-30"></i>
+        </div>
+        <div class="bg-raival-surface border border-white/5 rounded-2xl p-5 flex items-center justify-between">
+            <div>
+                <span class="text-[11px] font-black text-neutral-400 uppercase tracking-wider">Platform Revenue</span>
+                <h3 id="stat-revenue" class="text-2xl font-black text-raival-success mt-1">₵ 0.00</h3>
+            </div>
+            <i class="fa-solid fa-wallet text-raival-success text-3xl opacity-30"></i>
+        </div>
+        <div class="bg-raival-surface border border-white/5 rounded-2xl p-5 flex items-center justify-between">
+            <div>
+                <span class="text-[11px] font-black text-neutral-400 uppercase tracking-wider">Teams For Sale</span>
+                <h3 id="stat-teams-for-sale" class="text-2xl font-black text-raival-accent mt-1">0</h3>
+            </div>
+            <i class="fa-solid fa-store text-raival-accent text-3xl opacity-30"></i>
+        </div>
+    </section>
+
+    <!-- main Layout -->
+    <main class="flex-1 max-w-7xl w-full mx-auto px-4 md:px-6 pb-12 grid grid-cols-1 lg:grid-cols-12 gap-6 items-start">
+        
+        <!-- Left 8 columns: Database Management Core -->
+        <div class="lg:col-span-8 bg-raival-surface border border-white/5 rounded-2xl overflow-hidden shadow-xl">
+            <!-- Tabs Header -->
+            <div class="bg-raival-surfaceLight border-b border-white/5 px-6 flex items-center justify-between">
+                <div class="flex gap-4">
+                    <button id="btn-tab-tournaments" onclick="switchTab(0)" class="py-4 border-b-2 border-raival-primary text-raival-primary font-bold text-sm transition-all">
+                        <i class="fa-solid fa-gamepad mr-2"></i> Tournaments
+                    </button>
+                    <button id="btn-tab-users" onclick="switchTab(1)" class="py-4 border-b-2 border-transparent text-neutral-400 font-bold text-sm hover:text-white transition-all">
+                        <i class="fa-solid fa-users-gear mr-2"></i> Users
+                    </button>
+                    <button id="btn-tab-disputes" onclick="switchTab(2)" class="py-4 border-b-2 border-transparent text-neutral-400 font-bold text-sm hover:text-white transition-all">
+                        <i class="fa-solid fa-triangle-exclamation mr-2"></i> Match Disputes
+                    </button>
+                    <button id="btn-tab-payments" onclick="switchTab(3)" class="py-4 border-b-2 border-transparent text-neutral-400 font-bold text-sm hover:text-white transition-all">
+                        <i class="fa-solid fa-receipt mr-2"></i> Payments & Participants
+                    </button>
+                </div>
+            </div>
+
+            <!-- Tab Content: Tournaments -->
+            <div id="tab-tournaments" class="p-6 space-y-6">
+                <!-- Tournament Creator Panel -->
+                <div class="bg-black/40 border border-white/5 rounded-xl p-5">
+                    <h3 class="text-sm font-black text-white uppercase tracking-wider mb-4"><i class="fa-solid fa-plus text-raival-primary mr-2"></i> Orchestrate New Tournament</h3>
+                    <form id="create-tournament-form" class="grid grid-cols-1 md:grid-cols-3 gap-4">
+                        <div class="md:col-span-3">
+                            <label class="block text-xs text-neutral-400 font-bold uppercase mb-1">Tournament Title</label>
+                            <input type="text" id="t-title" required placeholder="e.g. Dream League Arena Championship" class="w-full bg-raival-surface border border-white/10 rounded-lg p-2.5 text-sm text-white focus:outline-none focus:border-raival-primary">
+                        </div>
+                        <div>
+                            <label class="block text-xs text-neutral-400 font-bold uppercase mb-1">Game Platform</label>
+                            <select id="t-game" class="w-full bg-raival-surface border border-white/10 rounded-lg p-2.5 text-sm text-white focus:outline-none focus:border-raival-primary">
+                                <option>Dream League Soccer</option>
+                                <option>eFootball 2026</option>
+                                <option>Call of Duty: Mobile</option>
+                                <option>FIFA Mobile</option>
+                            </select>
+                        </div>
+                        <div>
+                            <label class="block text-xs text-neutral-400 font-bold uppercase mb-1">Entry Fee (Coins)</label>
+                            <input type="number" id="t-fee" required value="25" class="w-full bg-raival-surface border border-white/10 rounded-lg p-2.5 text-sm text-white focus:outline-none focus:border-raival-primary">
+                        </div>
+                        <div>
+                            <label class="block text-xs text-neutral-400 font-bold uppercase mb-1">Prize Pool (Coins)</label>
+                            <input type="number" id="t-prize" required value="250" class="w-full bg-raival-surface border border-white/10 rounded-lg p-2.5 text-sm text-white focus:outline-none focus:border-raival-primary">
+                        </div>
+                        <div>
+                            <label class="block text-xs text-neutral-400 font-bold uppercase mb-1">Max Players</label>
+                            <select id="t-max" required class="w-full bg-raival-surface border border-white/10 rounded-lg p-2.5 text-sm text-white focus:outline-none focus:border-raival-primary">
+                                <option value="2">2 Players (Heads Up)</option>
+                                <option value="4">4 Players (Semi-Finals start)</option>
+                                <option value="8">8 Players (Quarter-Finals start)</option>
+                                <option value="16" selected>16 Players (Round of 16 start)</option>
+                                <option value="32">32 Players (Round of 32 start)</option>
+                            </select>
+                        </div>
+                        <div>
+                            <label class="block text-xs text-neutral-400 font-bold uppercase mb-1">Tournament Date</label>
+                            <input type="date" id="t-date" required value="2026-07-20" class="w-full bg-raival-surface border border-white/10 rounded-lg p-2.5 text-[13px] text-white focus:outline-none focus:border-raival-primary">
+                        </div>
+                        <div>
+                            <label class="block text-xs text-neutral-400 font-bold uppercase mb-1">Tournament Time</label>
+                            <input type="time" id="t-time" required value="18:00" class="w-full bg-raival-surface border border-white/10 rounded-lg p-2.5 text-[13px] text-white focus:outline-none focus:border-raival-primary">
+                        </div>
+                        <div class="md:col-span-3">
+                            <label class="block text-xs text-neutral-400 font-bold uppercase mb-1">Match Format / Bracket Style</label>
+                            <select id="t-format" class="w-full bg-raival-surface border border-white/10 rounded-lg p-2.5 text-sm text-white focus:outline-none focus:border-raival-primary">
+                                <option value="Knockout">Knockout Tournament Bracket (Single Elimination)</option>
+                                <option value="League">EPL-style Single League Table Group</option>
+                                <option value="UCL">UCL Styled Group & Knockout (Champions League)</option>
+                            </select>
+                        </div>
+                        <div class="md:col-span-3 text-right pt-2">
+                            <button type="submit" class="bg-raival-primary text-black font-black uppercase text-xs tracking-wider px-6 py-3 rounded-lg hover:brightness-110 transition-all">
+                                <i class="fa-solid fa-circle-plus mr-2"></i> Create & Sync Cloud Tournament
+                            </button>
+                        </div>
+                    </form>
+                </div>
+
+                <!-- Table -->
+                <div class="overflow-x-auto">
+                    <h3 class="text-xs font-black text-white uppercase tracking-wider mb-3">Live Active Tournaments</h3>
+                    <table class="w-full text-left border-collapse">
+                        <thead>
+                            <tr class="border-b border-white/10 text-xs font-black text-neutral-400 uppercase tracking-wider bg-white/[0.01]">
+                                <th class="py-3 px-4">ID</th>
+                                <th class="py-3 px-4">Title</th>
+                                <th class="py-3 px-4">Platform</th>
+                                <th class="py-3 px-4">Entry</th>
+                                <th class="py-3 px-4">Prize</th>
+                                <th class="py-3 px-4">Slots</th>
+                                <th class="py-3 px-4">Status</th>
+                                <th class="py-3 px-4 text-right">Action</th>
+                            </tr>
+                        </thead>
+                        <tbody id="tournaments-list">
+                            <!-- Populated Dynamically -->
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+
+            <!-- Tab Content: Users -->
+            <div id="tab-users" class="p-6 hidden space-y-6">
+                <!-- Create Admin Panel -->
+                <div class="bg-black/40 border border-white/5 rounded-xl p-5">
+                    <h3 class="text-sm font-black text-white uppercase tracking-wider mb-4">
+                        <i class="fa-solid fa-user-shield text-raival-primary mr-2"></i> Register New Administrator Account
+                    </h3>
+                    <form id="create-admin-form" class="grid grid-cols-1 md:grid-cols-4 gap-4">
+                        <div>
+                            <label class="block text-xs text-neutral-400 font-bold uppercase mb-1">Username</label>
+                            <input type="text" id="adm-username" required placeholder="e.g. kwame_admin" class="w-full bg-raival-surface border border-white/10 rounded-lg p-2.5 text-sm text-white focus:outline-none focus:border-raival-primary">
+                        </div>
+                        <div>
+                            <label class="block text-xs text-neutral-400 font-bold uppercase mb-1">Full Name</label>
+                            <input type="text" id="adm-fullname" required placeholder="e.g. Kwame Mensah" class="w-full bg-raival-surface border border-white/10 rounded-lg p-2.5 text-sm text-white focus:outline-none focus:border-raival-primary">
+                        </div>
+                        <div>
+                            <label class="block text-xs text-neutral-400 font-bold uppercase mb-1">Email Address</label>
+                            <input type="email" id="adm-email" required placeholder="e.g. kwame@raival.com" class="w-full bg-raival-surface border border-white/10 rounded-lg p-2.5 text-sm text-white focus:outline-none focus:border-raival-primary">
+                        </div>
+                        <div>
+                            <label class="block text-xs text-neutral-400 font-bold uppercase mb-1">Phone Number</label>
+                            <input type="text" id="adm-phone" required placeholder="e.g. +233241112222" class="w-full bg-raival-surface border border-white/10 rounded-lg p-2.5 text-sm text-white focus:outline-none focus:border-raival-primary">
+                        </div>
+                        <div class="md:col-span-4 text-right pt-2">
+                            <button type="submit" class="bg-raival-primary text-black font-black uppercase text-xs tracking-wider px-6 py-3 rounded-lg hover:brightness-110 transition-all">
+                                <i class="fa-solid fa-shield-halved mr-2"></i> Create Administrator Account
+                            </button>
+                        </div>
+                    </form>
+                </div>
+
+                <div class="overflow-x-auto">
+                    <h3 class="text-xs font-black text-white uppercase tracking-wider mb-3">Accounts Directory</h3>
+                    <table class="w-full text-left border-collapse">
+                        <thead>
+                            <tr class="border-b border-white/10 text-xs font-black text-neutral-400 uppercase tracking-wider bg-white/[0.01]">
+                                <th class="py-3 px-4">Gamer Profile</th>
+                                <th class="py-3 px-4">Email</th>
+                                <th class="py-3 px-4">Coins</th>
+                                <th class="py-3 px-4">XP Status</th>
+                                <th class="py-3 px-4">Raival Points</th>
+                                <th class="py-3 px-4">Security Status</th>
+                                <th class="py-3 px-4 text-right">Administrative Action</th>
+                            </tr>
+                        </thead>
+                        <tbody id="users-list">
+                            <!-- Populated Dynamically -->
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+
+            <!-- Tab Content: Disputes -->
+            <div id="tab-disputes" class="p-6 hidden space-y-4">
+                <h3 class="text-xs font-black text-white uppercase tracking-wider">Unresolved Match Result Disputes</h3>
+                <div id="disputes-container" class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <!-- Populated Dynamically -->
+                </div>
+            </div>
+
+            <!-- Tab Content: Payments & Registrations -->
+            <div id="tab-payments" class="p-6 hidden space-y-6">
+                <!-- 🧪 Automated Registration Testing Panel -->
+                <div class="bg-raival-surface border border-white/5 rounded-2xl p-5 space-y-4 shadow-xl">
+                    <div class="flex items-center justify-between pb-3 border-b border-white/5">
+                        <div class="flex items-center gap-2.5">
+                            <div class="p-2 bg-raival-primary/10 rounded-xl">
+                                <i class="fa-solid fa-vial-circle-check text-raival-primary text-sm"></i>
+                            </div>
+                            <div>
+                                <h3 class="text-xs font-black uppercase tracking-wider text-white">Automated Registration Tester</h3>
+                                <p class="text-[10px] text-neutral-400 mt-0.5">Simulate users joining a tournament in real-time to trigger alerts & test integration.</p>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="grid grid-cols-1 md:grid-cols-4 gap-4">
+                        <div class="space-y-1">
+                            <label class="text-[10px] font-black uppercase text-neutral-400">Gamer Tag</label>
+                            <input id="sim-player-name" type="text" placeholder="Kofi_Striker" class="w-full bg-raival-surfaceLight border border-white/10 rounded-lg p-2 text-xs text-white focus:outline-none focus:border-raival-primary">
+                        </div>
+                        <div class="space-y-1">
+                            <label class="text-[10px] font-black uppercase text-neutral-400">In-Game Nickname</label>
+                            <input id="sim-ingame-name" type="text" placeholder="Kofi DLS Pro" class="w-full bg-raival-surfaceLight border border-white/10 rounded-lg p-2 text-xs text-white focus:outline-none focus:border-raival-primary">
+                        </div>
+                        <div class="space-y-1">
+                            <label class="text-[10px] font-black uppercase text-neutral-400">Target Tournament</label>
+                            <select id="sim-tour-select" class="w-full bg-raival-surfaceLight border border-white/10 rounded-lg p-2 text-xs text-white focus:outline-none focus:border-raival-primary">
+                                <option value="">-- Select Tournament --</option>
+                            </select>
+                        </div>
+                        <div class="flex items-end">
+                            <button onclick="simulateJoinTournament()" class="w-full bg-raival-primary text-black font-black uppercase text-xs tracking-wider py-2.5 rounded-lg hover:brightness-110 active:scale-95 transition-all flex items-center justify-center gap-2">
+                                <i class="fa-solid fa-bolt"></i> Simulate Join Alert
+                            </button>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Section 1: Tournament Registrations (Participants) -->
+                <div class="space-y-4">
+                    <div class="flex flex-col md:flex-row md:items-center justify-between gap-4">
+                        <div>
+                            <h3 class="text-sm font-black text-white uppercase tracking-wider text-raival-primary">Tournament Participant Lists</h3>
+                            <p class="text-xs text-neutral-400 mt-1">Select a tournament to filter the active registered players & team sheets.</p>
+                        </div>
+                        <div>
+                            <select id="registration-tour-select" onchange="renderPaymentsAndRegistrations()" class="w-full bg-raival-surfaceLight border border-white/10 rounded-lg p-2 text-xs text-white focus:outline-none focus:border-raival-primary min-w-[200px]">
+                                <option value="">-- View All Tournaments --</option>
+                            </select>
+                        </div>
+                    </div>
+                    <div class="overflow-x-auto rounded-xl border border-white/5">
+                        <table class="w-full text-left border-collapse min-w-[700px]">
+                            <thead>
+                                <tr class="bg-white/[0.02] text-[11px] font-black uppercase text-neutral-400 border-b border-white/5">
+                                    <th class="py-3 px-4">Player / Account ID</th>
+                                    <th class="py-3 px-4">In-Game Name</th>
+                                    <th class="py-3 px-4">Phone Number</th>
+                                    <th class="py-3 px-4">Payment Type</th>
+                                    <th class="py-3 px-4">Selected Team Details</th>
+                                    <th class="py-3 px-4">Registered At</th>
+                                    <th class="py-3 px-4 text-right">Actions</th>
+                                </tr>
+                            </thead>
+                            <tbody id="registrations-list" class="divide-y divide-white/5">
+                                <!-- Populated Dynamically -->
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+
+                <!-- Section 2: Mobile Money & Coin Ledger (Transactions) -->
+                <div class="space-y-4 pt-4 border-t border-white/5">
+                    <div>
+                        <h3 class="text-sm font-black text-white uppercase tracking-wider text-raival-secondary">Mobile Money & Entry Fee Ledger</h3>
+                        <p class="text-xs text-neutral-400 mt-1">Real-time payment history tracking registration fees, deposits, and withdrawal transactions.</p>
+                    </div>
+                    <div class="overflow-x-auto rounded-xl border border-white/5">
+                        <table class="w-full text-left border-collapse min-w-[700px]">
+                            <thead>
+                                <tr class="bg-white/[0.02] text-[11px] font-black uppercase text-neutral-400 border-b border-white/5">
+                                    <th class="py-3 px-4">Transaction Ref</th>
+                                    <th class="py-3 px-4">Account ID</th>
+                                    <th class="py-3 px-4">Description / Tournament</th>
+                                    <th class="py-3 px-4">Amount</th>
+                                    <th class="py-3 px-4">Payment Method</th>
+                                    <th class="py-3 px-4">Verification Status</th>
+                                    <th class="py-3 px-4">Timestamp</th>
+                                </tr>
+                            </thead>
+                            <tbody id="payments-list" class="divide-y divide-white/5">
+                                <!-- Populated Dynamically -->
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+
+        </div>
+
+        <!-- Right 4 columns: System Sync Configurations & Security Logs -->
+        <div class="lg:col-span-4 space-y-6">
+            
+            <!-- Supabase Auto-Connection Status Card -->
+            <div class="bg-raival-surface border border-white/5 rounded-2xl p-5 space-y-4 shadow-xl">
+                <div class="flex items-center gap-2 pb-2 border-b border-white/5">
+                    <i class="fa-solid fa-server text-raival-primary"></i>
+                    <h3 class="text-sm font-black uppercase tracking-wider text-white">Supabase Cloud Sync</h3>
+                </div>
+                <div class="flex items-center gap-3 bg-raival-success/15 border border-raival-success/30 px-4 py-3 rounded-xl">
+                    <i class="fa-solid fa-circle-check text-raival-success text-base animate-pulse"></i>
+                    <div>
+                        <div class="text-xs font-bold text-raival-success">Auto-Connected to Backend</div>
+                        <div class="text-[10px] text-neutral-400 font-mono">fqthnjkvqdvlpocrcllh.supabase.co</div>
+                    </div>
+                </div>
+                <!-- Hidden inputs for legacy JS compatibility -->
+                <input type="hidden" id="fb-apikey" value="https://fqthnjkvqdvlpocrcllh.supabase.co">
+                <input type="hidden" id="fb-projectid" value="sb_publishable_FXz03WIgcGcdxdlP-0Pfag_0rAkIRzz">
+                <button id="connect-supabase" class="hidden">Connect</button>
+            </div>
+
+            <!-- AI Admin Copilot Chat Card -->
+            <div class="bg-raival-surface border border-raival-primary/20 rounded-2xl p-5 space-y-4 shadow-xl relative overflow-hidden">
+                <div class="absolute -top-12 -right-12 size-24 bg-raival-primary/5 rounded-full blur-xl"></div>
+                <div class="flex items-center justify-between pb-2 border-b border-white/5">
+                    <div class="flex items-center gap-2">
+                        <i class="fa-solid fa-robot text-raival-primary animate-pulse"></i>
+                        <h3 class="text-sm font-black uppercase tracking-wider text-white">AI Administrative Copilot</h3>
+                    </div>
+                    <span class="text-[10px] bg-raival-primary/10 text-raival-primary px-2 py-0.5 rounded-full font-bold">HQ v1.2</span>
+                </div>
+                
+                <p class="text-xs text-neutral-400 leading-relaxed">
+                    Control your entire system with natural language commands. Orchestrate tournaments, adjust balances, and resolve disputes instantly.
+                </p>
+
+                <!-- Model API Key (Persisted) -->
+                <div class="space-y-1.5">
+                    <label class="block text-[9px] text-neutral-400 font-bold uppercase tracking-wider flex justify-between">
+                        <span>Gemini API Key (Optional)</span>
+                        <span id="key-status-badge" class="text-raival-secondary font-bold">Sandbox (Simulated AI)</span>
+                    </label>
+                    <div class="flex gap-2">
+                        <input type="password" id="gemini-key-input" value="AQ.Ab8RN6L3kH1yMpHvbEwTc-g_xMKVn9ZlP8mvdShwSvPJg4f4lA" placeholder="Enter Gemini API key for live LLM..." class="flex-1 bg-raival-surfaceLight border border-white/10 rounded-lg p-2 text-xs text-white font-mono focus:outline-none focus:border-raival-primary">
+                        <button id="save-gemini-key" class="bg-raival-primary/10 hover:bg-raival-primary hover:text-black border border-raival-primary/20 text-raival-primary text-xs font-bold px-3 py-2 rounded-lg transition-all">
+                            Save
+                        </button>
+                    </div>
+                </div>
+
+                <!-- Chat Terminal View -->
+                <div id="ai-chat-history" class="h-[220px] bg-black/50 border border-white/5 rounded-xl p-3 overflow-y-auto custom-scrollbar space-y-3 font-mono text-xs">
+                    <!-- Populated Dynamically -->
+                </div>
+
+                <!-- Suggested Chips -->
+                <div class="flex flex-wrap gap-1.5">
+                    <button onclick="sendQuickPrompt('Create tournament &ldquo;Raival Ghana Open&rdquo; with 15 coins entry and 150 coins prize pool')" class="text-[10px] bg-raival-surfaceLight border border-white/5 text-neutral-300 hover:border-raival-primary hover:text-raival-primary px-2.5 py-1 rounded-lg transition-all text-left">
+                        ➕ Create Tournament
+                    </button>
+                    <button onclick="sendQuickPrompt('Give Akwasi_Gamer 300 coins')" class="text-[10px] bg-raival-surfaceLight border border-white/5 text-neutral-300 hover:border-raival-primary hover:text-raival-primary px-2.5 py-1 rounded-lg transition-all text-left">
+                        🪙 Give Akwasi_Gamer 300
+                    </button>
+                    <button onclick="sendQuickPrompt('Ban user DLS_Guru')" class="text-[10px] bg-raival-surfaceLight border border-white/5 text-neutral-300 hover:border-raival-primary hover:text-raival-primary px-2.5 py-1 rounded-lg transition-all text-left">
+                        🚫 Ban DLS_Guru
+                    </button>
+                    <button onclick="sendQuickPrompt('Resolve dispute disp_902 with winner player 2')" class="text-[10px] bg-raival-surfaceLight border border-white/5 text-neutral-300 hover:border-raival-primary hover:text-raival-primary px-2.5 py-1 rounded-lg transition-all text-left">
+                        ⚖️ Resolve Dispute
+                    </button>
+                </div>
+
+                <!-- Message Input -->
+                <form id="ai-copilot-form" class="flex gap-2">
+                    <input type="text" id="ai-prompt-input" required placeholder="Type admin command..." class="flex-1 bg-raival-surfaceLight border border-white/10 rounded-lg p-2.5 text-xs text-white focus:outline-none focus:border-raival-primary">
+                    <button type="submit" id="ai-submit-btn" class="bg-raival-primary text-black font-black uppercase text-xs tracking-wider px-4 py-2.5 rounded-lg hover:brightness-110 active:scale-95 transition-all">
+                        Ask
+                    </button>
+                </form>
+            </div>
+
+            <!-- Live Secure Log Stream -->
+            <div class="bg-raival-surface border border-white/5 rounded-2xl p-5 space-y-4 shadow-xl">
+                <div class="flex items-center justify-between pb-2 border-b border-white/5">
+                    <div class="flex items-center gap-2">
+                        <i class="fa-solid fa-terminal text-raival-secondary"></i>
+                        <h3 class="text-sm font-black uppercase tracking-wider text-white">Security Log Audit</h3>
+                    </div>
+                    <span class="size-2 bg-raival-success rounded-full animate-ping"></span>
+                </div>
+                <div id="log-stream" class="space-y-2 max-h-[300px] overflow-y-auto custom-scrollbar">
+                    <!-- Populated Dynamically -->
+                </div>
+            </div>
+
+        </div>
+
+    </main>
+
+    <!-- Edit Tournament Modal -->
+    <div id="edit-tournament-modal" class="fixed inset-0 bg-black/80 backdrop-blur-md z-[100] flex items-center justify-center p-4 hidden">
+        <div class="bg-raival-surface border border-white/10 rounded-2xl max-w-lg w-full max-h-[90vh] overflow-y-auto custom-scrollbar shadow-2xl">
+            <div class="bg-raival-surfaceLight border-b border-white/5 p-6 flex items-center justify-between">
+                <div class="flex items-center gap-2.5">
+                    <i class="fa-solid fa-pen-to-square text-raival-primary text-lg"></i>
+                    <h3 class="text-base font-black tracking-wider text-white">EDIT TOURNAMENT</h3>
+                </div>
+                <button onclick="closeEditTournamentModal()" class="text-neutral-400 hover:text-white transition-all">
+                    <i class="fa-solid fa-xmark text-lg"></i>
+                </button>
+            </div>
+            <form id="edit-tournament-form" onsubmit="saveEditedTournament(event)" class="p-6 space-y-4">
+                <input type="hidden" id="edit-t-id">
+                <div>
+                    <label class="block text-xs text-neutral-400 font-bold uppercase mb-1">Tournament Title</label>
+                    <input type="text" id="edit-t-title" required class="w-full bg-raival-surfaceLight border border-white/10 rounded-lg p-2.5 text-sm text-white focus:outline-none focus:border-raival-primary">
+                </div>
+                <div class="grid grid-cols-2 gap-4">
+                    <div>
+                        <label class="block text-xs text-neutral-400 font-bold uppercase mb-1">Game Platform</label>
+                        <select id="edit-t-game" class="w-full bg-raival-surfaceLight border border-white/10 rounded-lg p-2.5 text-sm text-white focus:outline-none focus:border-raival-primary">
+                            <option>Dream League Soccer</option>
+                            <option>eFootball 2026</option>
+                            <option>Call of Duty: Mobile</option>
+                            <option>FIFA Mobile</option>
+                        </select>
+                    </div>
+                    <div>
+                        <label class="block text-xs text-neutral-400 font-bold uppercase mb-1">Status</label>
+                        <select id="edit-t-status" class="w-full bg-raival-surfaceLight border border-white/10 rounded-lg p-2.5 text-sm text-white focus:outline-none focus:border-raival-primary">
+                            <option value="Open">Open (Live)</option>
+                            <option value="Coming Soon">Coming Soon</option>
+                            <option value="Closed">Closed</option>
+                            <option value="Completed">Completed</option>
+                        </select>
+                    </div>
+                </div>
+                <div class="grid grid-cols-3 gap-4">
+                    <div>
+                        <label class="block text-xs text-neutral-400 font-bold uppercase mb-1">Entry Fee (Coins)</label>
+                        <input type="number" id="edit-t-fee" required class="w-full bg-raival-surfaceLight border border-white/10 rounded-lg p-2.5 text-sm text-white focus:outline-none focus:border-raival-primary">
+                    </div>
+                    <div>
+                        <label class="block text-xs text-neutral-400 font-bold uppercase mb-1">Prize Pool (Coins)</label>
+                        <input type="number" id="edit-t-prize" required class="w-full bg-raival-surfaceLight border border-white/10 rounded-lg p-2.5 text-sm text-white focus:outline-none focus:border-raival-primary">
+                    </div>
+                    <div>
+                        <label class="block text-xs text-neutral-400 font-bold uppercase mb-1">Max Players</label>
+                        <select id="edit-t-max" required class="w-full bg-raival-surfaceLight border border-white/10 rounded-lg p-2.5 text-sm text-white focus:outline-none focus:border-raival-primary">
+                            <option value="2">2 Players (Heads Up)</option>
+                            <option value="4">4 Players (Semi-Finals start)</option>
+                            <option value="8">8 Players (Quarter-Finals start)</option>
+                            <option value="16">16 Players (Round of 16 start)</option>
+                            <option value="32">32 Players (Round of 32 start)</option>
+                        </select>
+                    </div>
+                </div>
+                <div class="grid grid-cols-2 gap-4">
+                    <div>
+                        <label class="block text-xs text-neutral-400 font-bold uppercase mb-1">Tournament Date</label>
+                        <input type="date" id="edit-t-date" required class="w-full bg-raival-surfaceLight border border-white/10 rounded-lg p-2.5 text-[13px] text-white focus:outline-none focus:border-raival-primary">
+                    </div>
+                    <div>
+                        <label class="block text-xs text-neutral-400 font-bold uppercase mb-1">Tournament Time</label>
+                        <input type="time" id="edit-t-time" required class="w-full bg-raival-surfaceLight border border-white/10 rounded-lg p-2.5 text-[13px] text-white focus:outline-none focus:border-raival-primary">
+                    </div>
+                </div>
+                <div>
+                    <label class="block text-xs text-neutral-400 font-bold uppercase mb-1">Match Format / Bracket Style</label>
+                    <select id="edit-t-format" class="w-full bg-raival-surfaceLight border border-white/10 rounded-lg p-2.5 text-sm text-white focus:outline-none focus:border-raival-primary">
+                        <option value="Knockout">Knockout Tournament Bracket (Single Elimination)</option>
+                        <option value="League">EPL-style Single League Table Group</option>
+                        <option value="UCL">UCL Styled Group & Knockout (Champions League)</option>
+                    </select>
+                </div>
+                <div class="flex gap-3 justify-end pt-4 border-t border-white/5">
+                    <button type="button" onclick="closeEditTournamentModal()" class="px-5 py-2.5 rounded-lg border border-white/10 text-xs font-bold uppercase text-neutral-300 hover:bg-white/5 transition-all">
+                        Cancel
+                    </button>
+                    <button type="submit" class="px-5 py-2.5 rounded-lg bg-raival-primary text-black text-xs font-black uppercase tracking-wider hover:brightness-110 active:scale-95 transition-all">
+                        Save Changes
+                    </button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <!-- Footer -->
+    <footer class="mt-auto py-6 bg-raival-bg border-t border-white/5 text-center text-xs text-neutral-500">
+        <p>© 2026 Raival Gaming Platform. Handcrafted and secure administrator console synced with Supabase.</p>
+    </footer>
+
+</body>
+</html>
